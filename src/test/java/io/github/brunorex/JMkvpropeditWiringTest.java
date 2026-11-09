@@ -317,6 +317,25 @@ class JMkvpropeditWiringTest {
                 "--edit", "track:v1", "--set", "name=TrackName"), args.get(0));
     }
 
+    @Test
+    void trackStatisticsCheckboxReachesTheBatch() throws Exception {
+        window = newWindow();
+
+        @SuppressWarnings("unchecked")
+        DefaultListModel<String> modelFiles = (DefaultListModel<String>) get(window, "modelFiles");
+        modelFiles.addElement("C:\\clips\\first.mkv");
+
+        JCheckBox chbTrackStats = get(window, "chbTrackStats");
+        assertFalse(chbTrackStats.isSelected(), "off by default");
+        click(chbTrackStats);
+
+        call(window, "setCmdLine");
+
+        @SuppressWarnings("unchecked")
+        List<List<String>> args = (List<List<String>>) get(window, "cmdLineBatchOpt");
+        assertEquals(List.of("C:\\clips\\first.mkv", "--add-track-statistics-tags"), args.get(0));
+    }
+
     /* Test plumbing */
 
     private static JMkvpropedit newWindow() throws Exception {

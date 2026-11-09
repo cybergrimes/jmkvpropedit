@@ -57,11 +57,18 @@ public final class CommandBuilder {
      * @param tags         tags section
      * @param chapters     chapters section
      * @param title        title section
-     * @param extraEnabled the "Extra parameters" checkbox
-     * @param extra        the extra parameters text
+     * @param extraEnabled    the "Extra parameters" checkbox
+     * @param extra           the extra parameters text
+     * @param trackStatistics the "Update track statistics" checkbox
      */
     public record GeneralSettings(SourceSetting tags, SourceSetting chapters,
-            TitleSetting title, boolean extraEnabled, String extra) {
+            TitleSetting title, boolean extraEnabled, String extra, boolean trackStatistics) {
+
+        /** Without track statistics. */
+        public GeneralSettings(SourceSetting tags, SourceSetting chapters,
+                TitleSetting title, boolean extraEnabled, String extra) {
+            this(tags, chapters, title, extraEnabled, extra, false);
+        }
     }
 
     /**
@@ -73,8 +80,9 @@ public final class CommandBuilder {
      * @param flags       the flags to set (ticked checkboxes only), mapped to
      *                    their Yes ({@code true}) / No ({@code false}) value;
      *                    emitted in {@link TrackFlag} order
-     * @param setName     append the track name
+     * @param setName     change the track name
      * @param name        the name text ({@code {num}}/{@code {file_name}} templates)
+     * @param removeName  remove the name instead of setting it (needs {@code setName})
      * @param setLanguage append the language
      * @param language    the language: an ISO 639 code from the list or a BCP 47 tag
      * @param setExtra    append the extra parameters
@@ -84,10 +92,20 @@ public final class CommandBuilder {
      * @param numberPad   raw text of the numbering padding field
      */
     public record TrackSettings(boolean edit, Map<TrackFlag, Boolean> flags,
-            boolean setName, String name,
+            boolean setName, String name, boolean removeName,
             boolean setLanguage, String language,
             boolean setExtra, String extra,
             boolean numbering, String numberStart, String numberPad) {
+
+        /** Sets the name rather than removing it. */
+        public TrackSettings(boolean edit, Map<TrackFlag, Boolean> flags,
+                boolean setName, String name,
+                boolean setLanguage, String language,
+                boolean setExtra, String extra,
+                boolean numbering, String numberStart, String numberPad) {
+            this(edit, flags, setName, name, false, setLanguage, language, setExtra, extra,
+                    numbering, numberStart, numberPad);
+        }
 
         public TrackSettings {
             EnumMap<TrackFlag, Boolean> copy = new EnumMap<>(TrackFlag.class);
@@ -95,6 +113,11 @@ public final class CommandBuilder {
                 copy.putAll(flags);
             }
             flags = Collections.unmodifiableMap(copy);
+        }
+
+        /** Numbering is on and used: not when the name is being removed. */
+        public boolean numbered() {
+            return numbering && !(setName && removeName);
         }
 
         public boolean sets(TrackFlag flag) {
@@ -170,8 +193,8 @@ public final class CommandBuilder {
 
     /**
      * Builds the General-tab arguments, one list per file: tags, chapters,
-     * title (with {@code {num}}/{@code {file_name}} substitution) and extra
-     * parameters, in that order.
+     * title (with {@code {num}}/{@code {file_name}} substitution), track
+     * statistics and extra parameters, in that order.
      *
      * @throws NumberFormatException                        if title numbering is on
      *                                                      and a numbering field is
@@ -209,6 +232,10 @@ public final class CommandBuilder {
                 args.add("info");
                 args.add("--set");
                 args.add("title=" + newTitle);
+            }
+
+            if (settings.trackStatistics()) {
+                args.add("--add-track-statistics-tags");
             }
 
             args.addAll(extra);
@@ -269,7 +296,7 @@ public final class CommandBuilder {
             List<String> template = trackTemplate(selector, t + 1, settings);
             templates.add(template);
 
-            if (!template.isEmpty() && settings.numbering()) {
+            if (!template.isEmpty() && settings.numbered()) {
                 numbers[t] = Integer.parseInt(settings.numberStart().trim());
                 pads[t] = Integer.parseInt(settings.numberPad().trim());
             }
@@ -289,7 +316,7 @@ public final class CommandBuilder {
                 }
 
                 String num = null;
-                if (tracks.get(t).numbering()) {
+                if (tracks.get(t).numbered()) {
                     num = Utils.padNumber(pads[t], numbers[t]);
                     numbers[t]++;
                 }
@@ -321,7 +348,12 @@ public final class CommandBuilder {
         }
 
         if (settings.setName()) {
-            addSet(props, "name=" + settings.name());
+            if (settings.removeName()) {
+                props.add("--delete");
+                props.add("name");
+            } else {
+                addSet(props, "name=" + settings.name());
+            }
         }
 
         if (settings.setLanguage()) {

@@ -1,5 +1,6 @@
 package io.github.brunorex;
 
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
@@ -77,6 +78,7 @@ public final class TrackSlot {
 
     final JCheckBox chbName = new JCheckBox("Track name:");
     final JTextField txtName = new JTextField();
+    final JCheckBox chbRemoveName = new JCheckBox("Remove name");
 
     final JCheckBox chbNumb = new JCheckBox("Numbering:");
     final JLabel lblNumbStart = new JLabel("Start");
@@ -168,14 +170,20 @@ public final class TrackSlot {
             i++;
         }
 
-        // Row 2: track name.
+        // Row 2: track name, or remove it.
         chbName.setEnabled(false);
         addCell(chbName, 0, 2, new Insets(0, 0, 5, 5), GridBagConstraints.NONE,
                 GridBagConstraints.WEST);
-        txtName.setEnabled(false);
-        addCell(txtName, 1, 2, new Insets(0, 0, 5, 0), GridBagConstraints.HORIZONTAL,
+
+        JPanel nameControls = new JPanel(new BorderLayout(10, 0));
+        addCell(nameControls, 1, 2, new Insets(0, 0, 5, 0), GridBagConstraints.HORIZONTAL,
                 GridBagConstraints.CENTER);
+        txtName.setEnabled(false);
         txtName.setColumns(10);
+        nameControls.add(txtName, BorderLayout.CENTER);
+        chbRemoveName.setEnabled(false);
+        chbRemoveName.setToolTipText("Removes the track's name, so players show the language instead");
+        nameControls.add(chbRemoveName, BorderLayout.EAST);
 
         // Row 3: numbering controls (checkbox + start/pad fields in one panel).
         JPanel numbControls = new JPanel();
@@ -278,18 +286,7 @@ public final class TrackSlot {
             chbLang.setEnabled(!state);
             chbExtra.setEnabled(!state);
 
-            if (txtName.isEnabled() || chbName.isSelected()) {
-                txtName.setEnabled(!state);
-                chbNumb.setEnabled(!state);
-
-                if (chbNumb.isSelected()) {
-                    lblNumbStart.setEnabled(!state);
-                    txtNumbStart.setEnabled(!state);
-                    lblNumbPad.setEnabled(!state);
-                    txtNumbPad.setEnabled(!state);
-                    lblNumbExplain.setEnabled(!state);
-                }
-            }
+            refreshNameControls();
 
             if (cbLang.isEnabled() || chbLang.isSelected()) {
                 setLanguageControlsEnabled(!state);
@@ -309,28 +306,9 @@ public final class TrackSlot {
             });
         }
 
-        chbName.addActionListener(e -> {
-            boolean state = chbNumb.isEnabled();
-            chbNumb.setEnabled(!state);
-            txtName.setEnabled(!state);
-
-            if (chbNumb.isSelected()) {
-                lblNumbStart.setEnabled(!state);
-                txtNumbStart.setEnabled(!state);
-                lblNumbPad.setEnabled(!state);
-                txtNumbPad.setEnabled(!state);
-                lblNumbExplain.setEnabled(!state);
-            }
-        });
-
-        chbNumb.addActionListener(e -> {
-            boolean state = txtNumbStart.isEnabled();
-            lblNumbStart.setEnabled(!state);
-            txtNumbStart.setEnabled(!state);
-            lblNumbPad.setEnabled(!state);
-            txtNumbPad.setEnabled(!state);
-            lblNumbExplain.setEnabled(!state);
-        });
+        chbName.addActionListener(e -> refreshNameControls());
+        chbRemoveName.addActionListener(e -> refreshNameControls());
+        chbNumb.addActionListener(e -> refreshNameControls());
 
         txtNumbStart.addFocusListener(validateNumberingOnFocusLost(txtNumbStart));
         txtNumbPad.addFocusListener(validateNumberingOnFocusLost(txtNumbPad));
@@ -341,6 +319,25 @@ public final class TrackSlot {
             boolean state = txtExtra.isEnabled();
             txtExtra.setEnabled(!state);
         });
+    }
+
+    /**
+     * Enables the name row from its checkboxes: the name box and numbering
+     * only apply when the name is set, not when it is removed.
+     */
+    private void refreshNameControls() {
+        boolean name = chbName.isEnabled() && chbName.isSelected();
+        boolean typed = name && !chbRemoveName.isSelected();
+        boolean numbered = typed && chbNumb.isSelected();
+
+        chbRemoveName.setEnabled(name);
+        txtName.setEnabled(typed);
+        chbNumb.setEnabled(typed);
+        lblNumbStart.setEnabled(numbered);
+        txtNumbStart.setEnabled(numbered);
+        lblNumbPad.setEnabled(numbered);
+        txtNumbPad.setEnabled(numbered);
+        lblNumbExplain.setEnabled(numbered);
     }
 
     private void setLanguageControlsEnabled(boolean enabled) {

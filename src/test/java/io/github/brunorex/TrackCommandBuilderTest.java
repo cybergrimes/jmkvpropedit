@@ -261,7 +261,49 @@ class TrackCommandBuilderTest {
         assertFalse(track.setForced(), "later changes to the caller's map must not leak in");
     }
 
+    @Test
+    void removeNameDeletesTheNameInsteadOfSettingIt() {
+        CommandBuilder.Section section = build(removedName("ignored {num}"));
+
+        assertEquals(List.of("--edit", "track:v1", "--delete", "name"), section.forFile(0));
+        assertEquals(List.of("--edit", "track:v1", "--delete", "name"), section.forFile(1));
+    }
+
+    @Test
+    void removeNameIsIgnoredWhenTheNameCheckboxIsOff() {
+        CommandBuilder.TrackSettings track = new CommandBuilder.TrackSettings(true, Map.of(),
+                false, "", true, false, null, false, "", false, "1", "1");
+
+        assertEquals(List.of(), build(track).forFile(0));
+    }
+
+    @Test
+    void removeNameIgnoresNumberingFields() {
+        CommandBuilder.TrackSettings track = new CommandBuilder.TrackSettings(true, Map.of(),
+                true, "", true, false, null, false, "", true, "not-a-number", "x");
+
+        assertEquals(List.of("--edit", "track:v1", "--delete", "name"), build(track).forFile(0));
+    }
+
+    @Test
+    void removeNameCombinesWithFlagsAndLanguage() {
+        CommandBuilder.TrackSettings track = new CommandBuilder.TrackSettings(true,
+                Map.of(TrackFlag.DEFAULT, true), true, "", true, true, "eng", false, "", false, "1", "1");
+
+        assertEquals(List.of("--edit", "track:v1", "--set", "flag-default=1", "--delete", "name",
+                "--set", "language=eng"), build(track).forFile(0));
+    }
+
     /* Settings fixtures */
+
+    /** An edited track whose name is removed. */
+    private static CommandBuilder.TrackSettings removedName(String name) {
+        return new CommandBuilder.TrackSettings(true, Map.of(),
+                true, name, true,
+                false, null,
+                false, "",
+                true, "1", "1");
+    }
 
     private static CommandBuilder.Section build(CommandBuilder.TrackSettings... tracks) {
         return new CommandBuilder().buildTracks(FILES, 'v', List.of(tracks));

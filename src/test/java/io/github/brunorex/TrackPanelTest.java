@@ -201,6 +201,7 @@ class TrackPanelTest {
         assertFalse(s.forcedValue());
         assertTrue(s.setName());
         assertEquals("My Audio {num}", s.name());
+        assertFalse(s.removeName());
         assertTrue(s.setLanguage());
         assertEquals("eng", s.language());
         assertTrue(s.setExtra());
@@ -289,6 +290,49 @@ class TrackPanelTest {
         assertFalse(slot.rbNoDef.isEnabled());
         assertFalse(slot.cbLang.isEnabled());
         assertFalse(slot.txtExtra.isEnabled());
+    }
+
+    @Test
+    void removeNameGreysOutTheNameBoxAndNumbering() {
+        TrackPanel panel = new TrackPanel(TrackType.SUBTITLE, mkvStrings);
+        panel.addTrack();
+        TrackSlot slot = panel.slots().get(0);
+
+        assertFalse(slot.chbRemoveName.isEnabled());
+
+        click(slot.chbEdit);
+        assertFalse(slot.chbRemoveName.isEnabled(), "needs the Track name checkbox first");
+
+        click(slot.chbName);
+        click(slot.chbNumb);
+        assertTrue(slot.chbRemoveName.isEnabled());
+        assertTrue(slot.txtName.isEnabled());
+        assertTrue(slot.txtNumbStart.isEnabled());
+
+        click(slot.chbRemoveName);
+        assertFalse(slot.txtName.isEnabled());
+        assertFalse(slot.chbNumb.isEnabled());
+        assertFalse(slot.txtNumbStart.isEnabled());
+        assertFalse(slot.lblNumbExplain.isEnabled());
+        assertTrue(panel.trackSettings().get(0).removeName());
+
+        // Unticking Remove brings the name box and the chosen numbering back.
+        click(slot.chbRemoveName);
+        assertTrue(slot.txtName.isEnabled());
+        assertTrue(slot.chbNumb.isEnabled());
+        assertTrue(slot.txtNumbStart.isEnabled());
+        assertFalse(panel.trackSettings().get(0).removeName());
+
+        // Unchecking Edit greys the whole row, Remove included.
+        click(slot.chbRemoveName);
+        click(slot.chbEdit);
+        assertFalse(slot.chbRemoveName.isEnabled());
+        assertFalse(slot.txtName.isEnabled());
+
+        // Checking it again restores the row as it was left: name removed.
+        click(slot.chbEdit);
+        assertTrue(slot.chbRemoveName.isEnabled());
+        assertFalse(slot.txtName.isEnabled());
     }
 
     @Test

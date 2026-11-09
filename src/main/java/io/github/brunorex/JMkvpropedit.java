@@ -190,6 +190,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
     private JTextField txtTags;
     private JButton btnBrowseTags;
     private JComboBox<String> cbExtTags;
+    private JCheckBox chbTrackStats;
     private JCheckBox chbExtraCmdGeneral;
     private JTextField txtExtraCmdGeneral;
 
@@ -343,7 +344,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         gbl_pnlGeneral.columnWidths = new int[] { 75, 655, 0 };
         gbl_pnlGeneral.rowHeights = new int[] { 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0 };
         gbl_pnlGeneral.columnWeights = new double[] { 0.0, 1.0, Double.MIN_VALUE };
-        gbl_pnlGeneral.rowWeights = new double[] { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+        gbl_pnlGeneral.rowWeights = new double[] { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
                 Double.MIN_VALUE };
         pnlGeneral.setLayout(gbl_pnlGeneral);
 
@@ -550,12 +551,24 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         gbc_cbExtTags.gridy = 0;
         pnlTagControlsGeneral.add(cbExtTags, gbc_cbExtTags);
 
+        chbTrackStats = new JCheckBox("Update track statistics");
+        chbTrackStats.setToolTipText("<html>Recalculates each track's bitrate, duration, frame count and size<br>"
+                + "(shown by MediaInfo and media servers). The video and audio are not changed.<br>"
+                + "Slower: each file is read in full, about as long as copying it.</html>");
+        GridBagConstraints gbc_chbTrackStats = new GridBagConstraints();
+        gbc_chbTrackStats.anchor = GridBagConstraints.WEST;
+        gbc_chbTrackStats.insets = new Insets(0, 0, 10, 0);
+        gbc_chbTrackStats.gridwidth = 2;
+        gbc_chbTrackStats.gridx = 0;
+        gbc_chbTrackStats.gridy = 7;
+        pnlGeneral.add(chbTrackStats, gbc_chbTrackStats);
+
         chbExtraCmdGeneral = new JCheckBox("Extra parameters:");
         GridBagConstraints gbc_chbExtraCmdGeneral = new GridBagConstraints();
         gbc_chbExtraCmdGeneral.anchor = GridBagConstraints.WEST;
         gbc_chbExtraCmdGeneral.insets = new Insets(0, 0, 5, 5);
         gbc_chbExtraCmdGeneral.gridx = 0;
-        gbc_chbExtraCmdGeneral.gridy = 7;
+        gbc_chbExtraCmdGeneral.gridy = 8;
         pnlGeneral.add(chbExtraCmdGeneral, gbc_chbExtraCmdGeneral);
 
         txtExtraCmdGeneral = new JTextField();
@@ -564,7 +577,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         gbc_txtExtraCmdGeneral.insets = new Insets(0, 0, 5, 0);
         gbc_txtExtraCmdGeneral.fill = GridBagConstraints.HORIZONTAL;
         gbc_txtExtraCmdGeneral.gridx = 1;
-        gbc_txtExtraCmdGeneral.gridy = 7;
+        gbc_txtExtraCmdGeneral.gridy = 8;
         pnlGeneral.add(txtExtraCmdGeneral, gbc_txtExtraCmdGeneral);
         txtExtraCmdGeneral.setColumns(10);
     }
@@ -1235,7 +1248,8 @@ public class JMkvpropedit implements AttachmentPanel.Host {
                         txtChapters.getText(), String.valueOf(cbExtChapters.getSelectedItem())),
                 new CommandBuilder.TitleSetting(chbTitleGeneral.isSelected(), chbNumbGeneral.isSelected(),
                         txtTitleGeneral.getText(), txtNumbStartGeneral.getText(), txtNumbPadGeneral.getText()),
-                chbExtraCmdGeneral.isSelected(), txtExtraCmdGeneral.getText());
+                chbExtraCmdGeneral.isSelected(), txtExtraCmdGeneral.getText(),
+                chbTrackStats.isSelected());
     }
 
     /**
@@ -1332,7 +1346,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
                         appendOutput("File: " + file + "\n");
                         appendOutput("Command line: " + lines.get(i) + "\n\n");
 
-                        int exitCode = runner.runWithOptions(args.get(i), JMkvpropedit.this::appendOutput);
+                        int exitCode = runner.runWithOptions(args.get(i), JMkvpropedit.this::appendToolOutput);
                         summary.record(file, ProcessRunner.Outcome.of(exitCode));
 
                         if (exitCode != 0) {
@@ -1387,6 +1401,17 @@ public class JMkvpropedit implements AttachmentPanel.Host {
     private void appendOutput(final String text) {
         SwingUtilities.invokeLater(() -> {
             txtOutput.append(text);
+            txtOutput.setCaretPosition(txtOutput.getDocument().getLength());
+        });
+    }
+
+    /**
+     * Like {@link #appendOutput}, for mkvpropedit's own output: its progress
+     * percentages update one line instead of adding a line each.
+     */
+    private void appendToolOutput(final String text) {
+        SwingUtilities.invokeLater(() -> {
+            ProgressOutput.append(txtOutput, text);
             txtOutput.setCaretPosition(txtOutput.getDocument().getLength());
         });
     }

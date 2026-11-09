@@ -157,7 +157,7 @@ public final class TrackPanel extends JPanel {
 
             settings.add(new CommandBuilder.TrackSettings(slot.chbEdit.isSelected(),
                     slot.selectedFlags(),
-                    slot.chbName.isSelected(), slot.txtName.getText(),
+                    slot.chbName.isSelected(), slot.txtName.getText(), slot.chbRemoveName.isSelected(),
                     setLanguage, language,
                     slot.chbExtra.isSelected(), slot.txtExtra.getText(),
                     slot.chbNumb.isSelected(), slot.txtNumbStart.getText(), slot.txtNumbPad.getText()));

@@ -146,6 +146,29 @@ class GeneralCommandBuilderTest {
                 new CommandBuilder.TitleSetting(true, true, "T {num}", "not-a-number", "1"), false, "")));
     }
 
+    @Test
+    void trackStatisticsAddsTheStatisticsOptionForEveryFile() {
+        CommandBuilder.Section section = build(new CommandBuilder.GeneralSettings(off(), off(), titleOff(),
+                false, "", true));
+
+        assertEquals(List.of("--add-track-statistics-tags"), section.forFile(0));
+        assertEquals(List.of("--add-track-statistics-tags"), section.forFile(1));
+    }
+
+    @Test
+    void trackStatisticsComeAfterTagsAndTitleAndBeforeExtra() {
+        CommandBuilder.Section section = build(new CommandBuilder.GeneralSettings(tags(0, ""), off(),
+                new CommandBuilder.TitleSetting(true, false, "T", "1", "1"), true, "--quiet", true));
+
+        assertEquals(List.of("--tags", "all:", "--edit", "info", "--set", "title=T",
+                "--add-track-statistics-tags", "--quiet"), section.forFile(0));
+    }
+
+    @Test
+    void trackStatisticsAreOffByDefault() {
+        assertEquals(false, general(off(), off(), titleOff(), false, "").trackStatistics());
+    }
+
     /* Settings fixtures */
 
     private static CommandBuilder.Section build(CommandBuilder.GeneralSettings settings) {

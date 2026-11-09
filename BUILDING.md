@@ -154,6 +154,7 @@ Settings (the mkvpropedit path and the picker start folder) are stored in `JMkvp
 | `CommandLineFormatter` | Renders an argument list as a copy-pasteable command line. |
 | `OptionsFile` | Writes the JSON options file. |
 | `ProcessRunner` | Runs mkvpropedit, streams UTF-8 output, manages the temp file, returns exit codes. |
+| `ProgressOutput` | Keeps mkvpropedit's progress percentages on one line of the output box. |
 | `BatchSummary` | Tallies outcomes and writes the end-of-batch report. |
 | `AppPaths` | Per-user settings location and migration of an old ini file. |
 | `IniStore` | Reads and writes `JMkvpropedit.ini` (ini4j). |
