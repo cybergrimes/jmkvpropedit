@@ -1,6 +1,6 @@
 # Building and developing JMkvpropedit
 
-This page is for people who want to build JMkvpropedit from source or change the code. If you just want to use the app, see the [README](README.md).
+This page is for people who want to build JMkvpropedit from source or change the code. If you just want to use the app, download it from the [Releases](../../releases) page.
 
 - **Version:** set in one place, [`gradle.properties`](gradle.properties)
 - **Toolchain:** Java 21, Gradle 9 (Kotlin DSL)

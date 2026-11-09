@@ -21,7 +21,7 @@ build/jpackage):
     gradlew jpackage                           exe installer (needs WiX Toolset 3)
     gradlew jpackage -PjpackageType=msi        msi installer (needs WiX Toolset 3)
 
-See README.md for how to use the app and BUILDING.md for developer notes.
+Developer notes are in BUILDING.md in the source repository.
 
 Downloads and updates: https://github.com/cybergrimes/jmkvpropedit/releases
 Original project by Bruno Barbieri: https://github.com/BrunoReX/jmkvpropedit
