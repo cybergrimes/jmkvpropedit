@@ -68,7 +68,7 @@ Uses the JDK 21 `jpackage` tool. The task is opt-in: it is not part of `build`, 
 .\gradlew.bat jpackage -PjpackageType=msi
 ```
 
-Output goes to `build/jpackage/`; the task cleans that folder first, because `jpackage` refuses to overwrite an existing image.
+Output goes to `build/jpackage/`; the task cleans that folder first, because `jpackage` refuses to overwrite an existing image. `license.txt`, `readme.txt` and the `licenses/` folder are copied next to the exe, because the licenses require their text to ship with binary downloads.
 
 | Type | Output | Needs WiX | Notes |
 |------|--------|-----------|-------|
@@ -114,7 +114,9 @@ Settings (the mkvpropedit path) are stored in `JMkvpropedit.ini` in the per-user
 ├── build.gradle.kts          # application plugin, JUnit 5, jpackage task
 ├── settings.gradle.kts
 ├── gradle.properties         # app version
-├── .github/workflows/ci.yml  # gradlew build on push/PR (Ubuntu, Temurin 21)
+├── license.txt               # the app's BSD license
+├── licenses/                 # third-party licenses shipped with the Windows app
+├── .github/workflows/ci.yml  # wrapper check + gradlew build on push/PR (Ubuntu, Temurin 21)
 └── src/
     ├── main/java/.../        # application sources
     ├── main/resources/       # icons, language and MIME type lists

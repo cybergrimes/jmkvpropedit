@@ -1,0 +1,5 @@
+# Keep line endings fixed regardless of the platform that checks the files out.
+/gradlew text eol=lf
+*.bat     text eol=crlf
+*.jar     binary
+*.png     binary

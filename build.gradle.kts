@@ -55,12 +55,10 @@ tasks.withType<JavaCompile> {
     options.compilerArgs.add("-Xlint:deprecation")
 }
 
-
-
 dependencies {
     implementation("org.ini4j:ini4j:0.5.4")
 
-    // Unit tests (issue #11): JUnit 5 for src/test — the src/testHarness
+    // Unit tests: JUnit 5 for src/test — the src/testHarness
     // programs stay framework-free and outside Gradle source sets.
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -72,7 +70,7 @@ tasks.test {
 }
 
 // ---------------------------------------------------------------------------
-// Packaging (#10): self-contained installer via the JDK 21 jpackage tool.
+// Packaging: self-contained installer via the JDK 21 jpackage tool.
 //
 // Opt-in on purpose: this task is NOT wired into `build`/`check`, so plain
 // `gradlew build` (and the Linux CI) never needs jpackage or WiX.
@@ -113,7 +111,11 @@ tasks.register<Exec>("jpackage") {
         "--input", inputDir.absolutePath,
         "--main-jar", "jmkvpropedit-$appVersion.jar",
         "--main-class", application.mainClass.get(),
-        "--dest", destDir.absolutePath
+        "--dest", destDir.absolutePath,
+        // The BSD license and the Apache license of ini4j both require their
+        // text to ship with binary downloads, so put them next to the exe.
+        "--app-content", listOf("license.txt", "readme.txt", "licenses")
+            .joinToString(",") { layout.projectDirectory.file(it).asFile.absolutePath }
     )
 
     // Shortcut/menu/dir-chooser options only apply to exe/msi, not app-image.

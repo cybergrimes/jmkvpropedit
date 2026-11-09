@@ -264,7 +264,7 @@ public final class AttachmentPanel extends JPanel {
         txtReplacement.setColumns(10);
         addCell(controls, txtReplacement, 1, 2, GridBagConstraints.CENTER,
                 new Insets(0, 0, 5, 5), GridBagConstraints.HORIZONTAL);
-        JButton btnBrowseReplacement = new JButton("Browse....");
+        JButton btnBrowseReplacement = new JButton("Browse...");
         addCell(controls, btnBrowseReplacement, 2, 2, GridBagConstraints.CENTER,
                 new Insets(0, 0, 5, 0), GridBagConstraints.NONE);
 
