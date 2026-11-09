@@ -1,4 +1,4 @@
-package ru.anseranser.jmkvpropedit;/*
+/*
  * Copyright (c) 2012-2018 Bruno Barbieri
  * All rights reserved.
  *
@@ -23,10 +23,14 @@ package ru.anseranser.jmkvpropedit;/*
  *
  */
 
-
+package ru.anseranser.jmkvpropedit;
 
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -68,15 +72,24 @@ public class MkvStrings {
         return mimeTypeList;
     }
 
+    /**
+     * Reads a UTF-8 text resource from the classpath, one entry per line.
+     *
+     * @param resourceName the resource name, relative to the classpath root
+     * @return the lines of the resource
+     * @throws IllegalStateException if the resource is missing
+     * @throws UncheckedIOException  if the resource cannot be read
+     */
     public static List<String> readLines(String resourceName) {
+        InputStream in = MkvStrings.class.getClassLoader().getResourceAsStream(resourceName);
+        if (in == null) {
+            throw new IllegalStateException("Missing resource: " + resourceName);
+        }
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(
-                        MkvStrings.class.getClassLoader().getResourceAsStream(resourceName)
-                )
-        )) {
+                new InputStreamReader(in, StandardCharsets.UTF_8))) {
             return reader.lines().collect(Collectors.toList());
-        } catch (Exception e) {
-            throw new RuntimeException("Не удалось прочитать ресурс: " + resourceName, e);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not read resource: " + resourceName, e);
         }
     }
 }

@@ -51,6 +51,7 @@ sourceSets {
 }
 
 tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
     options.compilerArgs.add("-Xlint:deprecation")
 }
 
@@ -107,7 +108,7 @@ tasks.register<Exec>("jpackage") {
         "--type", jpackageType,
         "--name", "jmkvpropedit",
         "--app-version", appVersion,
-        "--vendor", "BrunoReX",
+        "--vendor", "JMkvpropedit contributors",
         "--description", "Batch GUI for mkvpropedit",
         "--input", inputDir.absolutePath,
         "--main-jar", "jmkvpropedit-$appVersion.jar",

@@ -97,8 +97,7 @@ public final class FileFiltersChecks {
     private static void checkFolderScanPicksUpWebm() throws Exception {
         JMkvpropedit w = newWindow();
 
-        File folder = Files.createTempDirectory(
-                Path.of(System.getProperty("java.io.tmpdir"), "opencode"), "jmkv-filters").toFile();
+        File folder = Files.createTempDirectory("jmkv-filters").toFile();
         try {
             touch(new File(folder, "a.mkv"));
             touch(new File(folder, "b.webm"));
