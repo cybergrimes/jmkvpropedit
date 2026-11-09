@@ -6,7 +6,7 @@ Notes for anyone (human or coding agent) changing this repository.
 
 | Path | Contents |
 |---|---|
-| `src/main/java/ru/anseranser/jmkvpropedit/` | The application. `JMkvpropedit` is the Swing window; `CommandBuilder` turns settings into mkvpropedit arguments; `ProcessRunner` runs them. |
+| `src/main/java/io/github/brunorex/` | The application. `JMkvpropedit` is the Swing window; `CommandBuilder` turns settings into mkvpropedit arguments; `ProcessRunner` runs them. |
 | `src/main/resources/` | Language names/codes, MIME types (UTF-8 text, one entry per line) and icons. |
 | `src/test/java/` | JUnit 5 unit tests, run by `gradlew build`. |
 | `src/testHarness/java/` | Plain `main()` check programs outside Gradle. They open real windows, so they need a display. |
