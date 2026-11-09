@@ -104,7 +104,7 @@ Batches run in a `SwingWorker`. mkvpropedit edits files in place, so it is never
 
 Folder scans run in the background and return files sorted case-insensitively.
 
-Settings (the mkvpropedit path) are stored in `JMkvpropedit.ini` in the per-user config folder: `%APPDATA%\JMkvpropedit\` on Windows, `~/Library/Application Support/JMkvpropedit/` on macOS, and `$XDG_CONFIG_HOME/jmkvpropedit/` (default `~/.config/jmkvpropedit/`) elsewhere. A `JMkvpropedit.ini` left in the working directory by an older version is copied over once.
+Settings (the mkvpropedit path and the picker start folder) are stored in `JMkvpropedit.ini` in the per-user config folder: `%APPDATA%\JMkvpropedit\` on Windows, `~/Library/Application Support/JMkvpropedit/` on macOS, and `$XDG_CONFIG_HOME/jmkvpropedit/` (default `~/.config/jmkvpropedit/`) elsewhere. A `JMkvpropedit.ini` left in the working directory by an older version is copied over once.
 
 ---
 
@@ -137,6 +137,7 @@ Settings (the mkvpropedit path) are stored in `JMkvpropedit.ini` in the per-user
 | `BatchSummary` | Tallies outcomes and writes the end-of-batch report. |
 | `AppPaths` | Per-user settings location and migration of an old ini file. |
 | `IniStore` | Reads and writes `JMkvpropedit.ini` (ini4j). |
+| `StartFolder` | Picks the folder the file pickers open in, falling back to the home folder. |
 | `FileScanner` | Recursive, sorted Matroska folder scan. |
 | `TrackPanel` / `TrackSlot` / `TrackType` | The shared video/audio/subtitle track UI. |
 | `TrackFlag` | The yes/no track flags and their mkvpropedit names. |

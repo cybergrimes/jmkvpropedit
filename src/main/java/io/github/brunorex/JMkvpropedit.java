@@ -111,6 +111,15 @@ public class JMkvpropedit implements AttachmentPanel.Host {
 
         @Override
         public int showOpenDialog(Component parent) {
+            if (startFolderPending) {
+                // Only the first picker of a session (or the first after the
+                // start folder changes) jumps there; afterwards the picker
+                // remembers the folder the user last browsed to.
+                startFolderPending = false;
+                super.setCurrentDirectory(
+                        StartFolder.resolve(startFolder, new File(System.getProperty("user.home"))));
+            }
+
             super.setSelectedFile(new File(""));
 
             return super.showOpenDialog(parent);
@@ -200,6 +209,14 @@ public class JMkvpropedit implements AttachmentPanel.Host {
     private JTextField txtMkvPropExe;
     private JCheckBox chbMkvPropExeDef;
     private JButton btnBrowseMkvPropExe;
+    private JTextField txtStartFolder;
+    private JButton btnBrowseStartFolder;
+    private JButton btnClearStartFolder;
+
+    /** The saved picker start folder, or null for the user's home folder. */
+    private String startFolder;
+    /** True until the next picker has been moved to {@link #startFolder}. */
+    private boolean startFolderPending = true;
 
     // Output tab controls
     private JTextArea txtOutput;
@@ -261,6 +278,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         wireFileListToolbar();
         wireGeneralTab();
         wireExecutableOptions();
+        wireStartFolderOption();
         wireActionButtons();
     }
 
@@ -582,9 +600,9 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         pnlTabs.addTab("Options", null, pnlOptions, null);
         GridBagLayout gbl_pnlOptions = new GridBagLayout();
         gbl_pnlOptions.columnWidths = new int[] { 0, 0, 0 };
-        gbl_pnlOptions.rowHeights = new int[] { 0, 0, 0, 0 };
+        gbl_pnlOptions.rowHeights = new int[] { 0, 0, 0, 0, 0, 0 };
         gbl_pnlOptions.columnWeights = new double[] { 0.0, 1.0, Double.MIN_VALUE };
-        gbl_pnlOptions.rowWeights = new double[] { 0.0, 0.0, 1.0, Double.MIN_VALUE };
+        gbl_pnlOptions.rowWeights = new double[] { 0.0, 0.0, 0.0, 0.0, 1.0, Double.MIN_VALUE };
         pnlOptions.setLayout(gbl_pnlOptions);
 
         JLabel lblMkvPropExe = new JLabel("Mkvpropedit executable:");
@@ -635,6 +653,48 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         gbc_button.gridx = 1;
         gbc_button.gridy = 0;
         pnlMkvPropExeControls.add(btnBrowseMkvPropExe, gbc_button);
+
+        buildStartFolderOption();
+    }
+
+    /** Options tab row: the folder the file and folder pickers open in. */
+    private void buildStartFolderOption() {
+        JLabel lblStartFolder = new JLabel("Start folder:");
+        lblStartFolder.setToolTipText("The folder the file and folder pickers open in");
+        GridBagConstraints gbc_label = new GridBagConstraints();
+        gbc_label.anchor = GridBagConstraints.WEST;
+        gbc_label.insets = new Insets(10, 0, 5, 5);
+        gbc_label.gridx = 0;
+        gbc_label.gridy = 2;
+        pnlOptions.add(lblStartFolder, gbc_label);
+
+        txtStartFolder = new JTextField();
+        txtStartFolder.setEditable(false);
+        txtStartFolder.setColumns(10);
+        txtStartFolder.setToolTipText("Empty: the pickers open in your user folder");
+        GridBagConstraints gbc_textField = new GridBagConstraints();
+        gbc_textField.insets = new Insets(10, 0, 5, 0);
+        gbc_textField.fill = GridBagConstraints.HORIZONTAL;
+        gbc_textField.gridx = 1;
+        gbc_textField.gridy = 2;
+        pnlOptions.add(txtStartFolder, gbc_textField);
+
+        // No outer gaps, so the Browse button lines up with the one above.
+        JPanel pnlStartFolderControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        GridBagConstraints gbc_panel = new GridBagConstraints();
+        gbc_panel.insets = new Insets(0, 0, 5, 0);
+        gbc_panel.fill = GridBagConstraints.BOTH;
+        gbc_panel.gridx = 1;
+        gbc_panel.gridy = 3;
+        pnlOptions.add(pnlStartFolderControls, gbc_panel);
+
+        btnClearStartFolder = new JButton("Clear");
+        btnClearStartFolder.setEnabled(false);
+        pnlStartFolderControls.add(btnClearStartFolder);
+        pnlStartFolderControls.add(Box.createHorizontalStrut(5));
+
+        btnBrowseStartFolder = new JButton("Browse...");
+        pnlStartFolderControls.add(btnBrowseStartFolder);
     }
 
     private void buildOutputTab() {
@@ -699,6 +759,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
                 frmJMkvpropedit.setLocationRelativeTo(null);
 
                 readIniFile();
+                readStartFolder();
                 videoPanel.addTrack();
                 audioPanel.addTrack();
                 subtitlePanel.addTrack();
@@ -1074,6 +1135,30 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         });
     }
 
+    private void wireStartFolderOption() {
+        btnBrowseStartFolder.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                chooser.setDialogTitle("Select the folder the pickers open in");
+                chooser.setMultiSelectionEnabled(false);
+                chooser.setAcceptAllFileFilterUsed(false);
+                chooser.resetChoosableFileFilters();
+
+                int open = chooser.showOpenDialog(frmJMkvpropedit);
+
+                if (open == JFileChooser.APPROVE_OPTION && chooser.getSelectedFile().isDirectory()) {
+                    setStartFolder(chooser.getSelectedFile().toString());
+                }
+            }
+        });
+
+        btnClearStartFolder.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                setStartFolder(null);
+            }
+        });
+    }
+
     private void wireActionButtons() {
         btnProcessFiles.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
@@ -1359,25 +1444,29 @@ public class JMkvpropedit implements AttachmentPanel.Host {
     /* Start of INI configuration file methods */
 
     private void readIniFile() {
-        if (iniStore.exists()) {
-            try {
-                String exePath = iniStore.readMkvpropedit();
+        String exePath;
 
-                if (exePath != null) {
-                    if (exePath.equals(IniStore.DEFAULT_MKVPROPEDIT)) {
-                        chbMkvPropExeDef.setSelected(true);
-                        chbMkvPropExeDef.setEnabled(false);
-                    } else {
-                        txtMkvPropExe.setText(exePath);
-                        chbMkvPropExeDef.setSelected(false);
-                        chbMkvPropExeDef.setEnabled(true);
-                    }
-                }
-            } catch (IniStoreException e) {
-                appendOutput("Error: " + e.getMessage() + "\n");
+        try {
+            exePath = iniStore.readMkvpropedit();
+        } catch (IniStoreException e) {
+            appendOutput("Error: " + e.getMessage() + "\n");
+            return;
+        }
+
+        if (exePath != null) {
+            if (exePath.equals(IniStore.DEFAULT_MKVPROPEDIT)) {
+                chbMkvPropExeDef.setSelected(true);
+                chbMkvPropExeDef.setEnabled(false);
+            } else {
+                txtMkvPropExe.setText(exePath);
+                chbMkvPropExeDef.setSelected(false);
+                chbMkvPropExeDef.setEnabled(true);
             }
         } else if (Utils.isWindows()) {
-            String exePath = getMkvPropExeDefault();
+            // No mkvpropedit location saved yet (no settings file, or one that
+            // only holds other settings such as the start folder): look in the
+            // usual MKVToolNix install folders.
+            exePath = getMkvPropExeDefault();
 
             if (exePath != null) {
                 txtMkvPropExe.setText(exePath);
@@ -1406,6 +1495,32 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         } catch (IniStoreException e) {
             appendOutput("Error: " + e.getMessage() + "\n");
         }
+    }
+
+    private void readStartFolder() {
+        try {
+            showStartFolder(iniStore.readStartFolder());
+        } catch (IniStoreException e) {
+            appendOutput("Error: " + e.getMessage() + "\n");
+        }
+    }
+
+    /** Saves a new start folder (null clears it); the next picker opens there. */
+    private void setStartFolder(String folder) {
+        showStartFolder(folder);
+        startFolderPending = true;
+
+        try {
+            iniStore.saveStartFolder(folder);
+        } catch (IniStoreException e) {
+            appendOutput("Error: " + e.getMessage() + "\n");
+        }
+    }
+
+    private void showStartFolder(String folder) {
+        startFolder = folder;
+        txtStartFolder.setText(folder == null ? "" : folder);
+        btnClearStartFolder.setEnabled(folder != null);
     }
 
     private String getMkvPropExeDefault() {

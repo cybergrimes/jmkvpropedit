@@ -112,4 +112,64 @@ class IniStoreTest {
 
         assertEquals("/usr/bin/mkvpropedit", new IniStore(nested.toFile()).readMkvpropedit());
     }
+
+    @Test
+    void startFolderIsNullUntilSet() throws Exception {
+        IniStore store = new IniStore(iniPath().toFile());
+
+        assertNull(store.readStartFolder());
+        store.saveMkvpropedit("mkvpropedit");
+        assertNull(store.readStartFolder());
+    }
+
+    @Test
+    void startFolderRoundTripsAndKeepsTheExecutablePath() throws Exception {
+        IniStore store = new IniStore(iniPath().toFile());
+        store.saveMkvpropedit("C:\\tools\\mkvpropedit.exe");
+
+        store.saveStartFolder("D:\\Movies\\TV Shows");
+
+        assertEquals("D:\\Movies\\TV Shows", new IniStore(iniPath().toFile()).readStartFolder());
+        assertEquals("C:\\tools\\mkvpropedit.exe", store.readMkvpropedit());
+    }
+
+    @Test
+    void savingTheExecutableKeepsTheStartFolder() throws Exception {
+        IniStore store = new IniStore(iniPath().toFile());
+        store.saveStartFolder("/media/movies");
+
+        store.saveMkvpropedit("/usr/bin/mkvpropedit");
+
+        assertEquals("/media/movies", store.readStartFolder());
+    }
+
+    @Test
+    void clearingTheStartFolderRemovesItAndKeepsTheExecutablePath() throws Exception {
+        IniStore store = new IniStore(iniPath().toFile());
+        store.saveMkvpropedit("mkvpropedit");
+        store.saveStartFolder("/media/movies");
+
+        store.saveStartFolder(null);
+
+        assertNull(store.readStartFolder());
+        assertEquals("mkvpropedit", store.readMkvpropedit());
+        assertFalse(Files.readString(iniPath(), StandardCharsets.UTF_8).contains(IniStore.START_FOLDER_KEY));
+    }
+
+    @Test
+    void clearingAStartFolderThatWasNeverSetIsHarmless() throws Exception {
+        IniStore store = new IniStore(iniPath().toFile());
+
+        store.saveStartFolder(null);
+        store.saveStartFolder("   ");
+
+        assertNull(store.readStartFolder());
+    }
+
+    @Test
+    void aBlankStoredStartFolderReadsAsNotSet() throws Exception {
+        Files.writeString(iniPath(), "[General]\nstartFolder =\n", StandardCharsets.UTF_8);
+
+        assertNull(new IniStore(iniPath().toFile()).readStartFolder());
+    }
 }

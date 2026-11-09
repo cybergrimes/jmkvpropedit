@@ -25,6 +25,8 @@ public final class IniStore {
     public static final String SECTION = "General";
     public static final String MKVPROPEDIT_KEY = "mkvpropedit";
     public static final String DEFAULT_MKVPROPEDIT = "mkvpropedit";
+    /** The folder the file and folder pickers open in; absent means the user's home folder. */
+    public static final String START_FOLDER_KEY = "startFolder";
 
     private final File iniFile;
 
@@ -54,6 +56,21 @@ public final class IniStore {
      *                           did
      */
     public String readMkvpropedit() throws IniStoreException {
+        return read(MKVPROPEDIT_KEY);
+    }
+
+    /**
+     * Reads the start folder for the file and folder pickers.
+     *
+     * @return the stored folder, or null when none is set
+     * @throws IniStoreException as {@link #readMkvpropedit()}
+     */
+    public String readStartFolder() throws IniStoreException {
+        String folder = read(START_FOLDER_KEY);
+        return folder == null || folder.isBlank() ? null : folder;
+    }
+
+    private String read(String key) throws IniStoreException {
         if (!iniFile.exists()) {
             return null;
         }
@@ -61,7 +78,7 @@ public final class IniStore {
         try (InputStream in = new FileInputStream(iniFile)) {
             Ini ini = new Ini();
             ini.load(in);
-            return ini.get(SECTION, MKVPROPEDIT_KEY);
+            return ini.get(SECTION, key);
         } catch (InvalidFileFormatException e) {
             throw new IniStoreException("malformed " + iniFile.getName() + ": " + e, e);
         } catch (IOException e) {
@@ -79,6 +96,21 @@ public final class IniStore {
      *                           god-class log lines used
      */
     public void saveMkvpropedit(String exePath) throws IniStoreException {
+        write(MKVPROPEDIT_KEY, exePath);
+    }
+
+    /**
+     * Stores the start folder for the file and folder pickers, or removes
+     * it when {@code folder} is null or blank. Other keys are kept.
+     *
+     * @throws IniStoreException as {@link #saveMkvpropedit(String)}
+     */
+    public void saveStartFolder(String folder) throws IniStoreException {
+        write(START_FOLDER_KEY, folder == null || folder.isBlank() ? null : folder);
+    }
+
+    /** Sets {@code key} in [General], or removes it when {@code value} is null. */
+    private void write(String key, String value) throws IniStoreException {
         try {
             if (!iniFile.exists()) {
                 File parent = iniFile.getAbsoluteFile().getParentFile();
@@ -93,7 +125,11 @@ public final class IniStore {
                 ini.load(in);
             }
 
-            ini.put(SECTION, MKVPROPEDIT_KEY, exePath);
+            if (value != null) {
+                ini.put(SECTION, key, value);
+            } else if (ini.containsKey(SECTION)) {
+                ini.get(SECTION).remove(key);
+            }
 
             try (OutputStream out = new FileOutputStream(iniFile)) {
                 ini.store(out);

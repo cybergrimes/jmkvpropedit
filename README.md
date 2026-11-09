@@ -51,7 +51,12 @@ The release download is for Windows. On macOS and Linux, install Java 21 and MKV
 
 ## Settings
 
-The only setting the app saves is the location of mkvpropedit. On Windows it's stored in `%APPDATA%\JMkvpropedit\`.
+The Options tab has two settings, and the app remembers both:
+
+- Mkvpropedit executable: where mkvpropedit is installed.
+- Start folder: the folder the file and folder pickers open in, for example your movie library. After the first picker, they open wherever you last browsed to. Leave it empty to start in your user folder. If the folder isn't available, for example a USB drive that's unplugged, the pickers open in your user folder instead.
+
+On Windows the settings are stored in `%APPDATA%\JMkvpropedit\`.
 
 ## Building from source
 
