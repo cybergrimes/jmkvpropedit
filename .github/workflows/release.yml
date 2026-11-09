@@ -1,0 +1,77 @@
+# Builds the Windows download and creates a DRAFT release when a version tag
+# such as v1.6.0 is pushed. Nothing is public until someone presses Publish
+# on the draft in GitHub's Releases page.
+#
+# The release text comes from docs/release-notes/<version>.md, and the tag
+# must match the version in gradle.properties.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Check the Gradle wrapper is the official one
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: Check the tag, version and release notes match
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = (Select-String -Path gradle.properties -Pattern '^version=(.+)$').Matches[0].Groups[1].Value.Trim()
+          if ($tag -ne "v$version") {
+            throw "Tag $tag does not match version=$version in gradle.properties (expected v$version)."
+          }
+          $notes = "docs/release-notes/$version.md"
+          if (-not (Test-Path $notes)) {
+            throw "Release notes $notes are missing."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "notes=$notes" >> $env:GITHUB_OUTPUT
+
+      - name: Build and run the tests
+        run: ./gradlew.bat build
+
+      - name: Build the portable app
+        run: ./gradlew.bat jpackage -PjpackageType=app-image
+
+      - name: Zip the app
+        id: zip
+        shell: pwsh
+        run: |
+          $zip = "jmkvpropedit-${{ steps.version.outputs.version }}-windows.zip"
+          # The zip holds one jmkvpropedit folder, so unzipping doesn't scatter files.
+          Compress-Archive -Path build/jpackage/jmkvpropedit -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Out-File -Encoding ascii -NoNewline "$zip.sha256"
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Create the draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            "${{ steps.zip.outputs.zip }}" "${{ steps.zip.outputs.zip }}.sha256" `
+            --draft `
+            --title "JMkvpropedit ${{ steps.version.outputs.version }}" `
+            --notes-file "${{ steps.version.outputs.notes }}"

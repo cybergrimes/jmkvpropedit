@@ -11,6 +11,7 @@ Notes for anyone (human or coding agent) changing this repository.
 | `src/test/java/` | JUnit 5 unit tests, run by `gradlew build`. |
 | `src/testHarness/java/` | Plain `main()` check programs outside Gradle. They open real windows, so they need a display. |
 | `.github/workflows/ci.yml` | CI: `./gradlew build` on Ubuntu with JDK 21. |
+| `.github/workflows/release.yml` | On a `v*` tag: builds the Windows zip and creates a draft release from `docs/release-notes/<version>.md`. |
 
 ## Build
 
@@ -28,3 +29,4 @@ Notes for anyone (human or coding agent) changing this repository.
 - Background work runs in a `SwingWorker`; UI updates happen only on the EDT (`appendOutput` is EDT-safe).
 - Settings live in the per-user folder from `AppPaths`, never in the working directory. Temporary options files come from `Files.createTempFile` and are always deleted.
 - Tests are named after the behaviour they check, and every bug fix gets a regression test.
+- Release notes are plain English for people managing a media library: what they can now do or what stopped going wrong. No class names or jargon.

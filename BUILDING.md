@@ -89,6 +89,24 @@ Output goes to `build/jpackage/`; the task cleans that folder first, because `jp
 
 ---
 
+## Making a release
+
+1. Set the new version in `gradle.properties`, for example `version=1.6.1`.
+2. Write the release notes in `docs/release-notes/<version>.md`, in plain English for people who use the app. Technical detail belongs in the commit messages.
+3. Commit, then tag and push:
+
+   ```bash
+   git tag v1.6.1
+   git push origin master v1.6.1
+   ```
+
+4. The Release workflow (`.github/workflows/release.yml`) checks that the tag matches the version and that the notes exist, runs the tests, builds the portable app, and creates a **draft** release with `jmkvpropedit-<version>-windows.zip`, its SHA-256 checksum, and the notes as its text.
+5. Check the draft on the Releases page and press Publish. Nothing is public until then.
+
+If the workflow stops, the draft isn't created. Fix the problem, then move the tag to the new commit (`git tag -f v1.6.1`, `git push -f origin v1.6.1`); this is safe only while the release is still unpublished.
+
+---
+
 ## How it works
 
 For each file, the app builds the mkvpropedit arguments as a list, one value per argument. Nothing is joined into a command string and split again, so quotes, apostrophes, backslashes and spaces reach mkvpropedit exactly as typed. The arguments are written to a temporary JSON options file, mkvpropedit is run as `mkvpropedit @file.json`, and the file is deleted afterwards. The command preview is rendered from the same list that runs.
@@ -117,6 +135,8 @@ Settings (the mkvpropedit path and the picker start folder) are stored in `JMkvp
 ├── license.txt               # the app's BSD license
 ├── licenses/                 # third-party licenses shipped with the Windows app
 ├── .github/workflows/ci.yml  # wrapper check + gradlew build on push/PR (Ubuntu, Temurin 21)
+├── .github/workflows/release.yml  # on a v* tag: Windows zip + draft release
+├── docs/release-notes/       # plain-English release notes, one file per version
 └── src/
     ├── main/java/.../        # application sources
     ├── main/resources/       # icons, language and MIME type lists
