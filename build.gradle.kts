@@ -112,6 +112,10 @@ tasks.register<Exec>("jpackage") {
         "--main-jar", "jmkvpropedit-$appVersion.jar",
         "--main-class", application.mainClass.get(),
         "--dest", destDir.absolutePath,
+        // Bundle only the parts of Java the app uses (found with jdeps), not
+        // the whole JDK; this keeps the download small. jdk.accessibility
+        // keeps screen readers working on Windows.
+        "--add-modules", "java.base,java.desktop,java.prefs,jdk.accessibility",
         // The BSD license and the Apache license of ini4j both require their
         // text to ship with binary downloads, so put them next to the exe.
         "--app-content", listOf("license.txt", "readme.txt", "licenses")

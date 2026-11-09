@@ -68,11 +68,11 @@ Uses the JDK 21 `jpackage` tool. The task is opt-in: it is not part of `build`, 
 .\gradlew.bat jpackage -PjpackageType=msi
 ```
 
-Output goes to `build/jpackage/`; the task cleans that folder first, because `jpackage` refuses to overwrite an existing image. `license.txt`, `readme.txt` and the `licenses/` folder are copied next to the exe, because the licenses require their text to ship with binary downloads.
+Only the Java modules the app uses are bundled (`--add-modules` in `build.gradle.kts`, found with `jdeps --print-module-deps`); if new code needs another module, add it there. Output goes to `build/jpackage/`; the task cleans that folder first, because `jpackage` refuses to overwrite an existing image. `license.txt`, `readme.txt` and the `licenses/` folder are copied next to the exe, because the licenses require their text to ship with binary downloads.
 
 | Type | Output | Needs WiX | Notes |
 |------|--------|-----------|-------|
-| `app-image` | `build/jpackage/jmkvpropedit/jmkvpropedit.exe` + `runtime/` | No | Unzip-and-run; about 150 MB because of the bundled Java. |
+| `app-image` | `build/jpackage/jmkvpropedit/jmkvpropedit.exe` + `runtime/` | No | Unzip-and-run; about 75 MB (25 MB zipped), most of it the bundled Java. |
 | `exe` (default) | `build/jpackage/jmkvpropedit-<version>.exe` | Yes | Installer with Start menu shortcut and folder chooser. |
 | `msi` | `build/jpackage/jmkvpropedit-<version>.msi` | Yes | Same, as an MSI package. |
 
@@ -85,7 +85,7 @@ Output goes to `build/jpackage/`; the task cleans that folder first, because `jp
 .\gradlew.bat build         # compile + test + assemble
 ```
 
-`src/testHarness/` holds plain `main()` check programs that run outside Gradle. They open real windows, so they need a display. They cover track management, file filters, the options file, Swing threading, repository hygiene and packaging. Compile them against `build/classes/java/main`, `build/resources/main` and the ini4j jar, then run each class.
+`src/testHarness/` holds plain `main()` check programs that run outside Gradle. They open real windows, so they need a display. They cover track management, file filters, the options file, Swing threading, repository hygiene and packaging. Compile them against `build/classes/java/main`, `build/resources/main` and the jars in `build/install/jmkvpropedit/lib`, then run each class.
 
 ---
 
