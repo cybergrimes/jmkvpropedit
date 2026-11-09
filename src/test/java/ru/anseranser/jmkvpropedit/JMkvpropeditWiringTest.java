@@ -308,11 +308,13 @@ class JMkvpropeditWiringTest {
         List<String> batch = (List<String>) get(window, "cmdLineBatch");
         assertEquals(1, batch.size(), batch::toString);
         String line = batch.get(0);
-        assertTrue(line.contains("\"C:\\clips\\first.mkv\""), line);
         assertTrue(line.contains("--edit info"), line);
-        assertTrue(line.contains("--set title=\"My Title\""), line);
         assertTrue(line.contains("--edit track:v1"), line);
-        assertTrue(line.contains("--set name=\"TrackName\""), line);
+
+        @SuppressWarnings("unchecked")
+        List<List<String>> args = (List<List<String>>) get(window, "cmdLineBatchOpt");
+        assertEquals(List.of("C:\\clips\\first.mkv", "--edit", "info", "--set", "title=My Title",
+                "--edit", "track:v1", "--set", "name=TrackName"), args.get(0));
     }
 
     /* Test plumbing */

@@ -60,9 +60,9 @@ public final class TrackManagementChecks {
     }
 
     /**
-     * AC1: the Opt variant of the command applies its own {@code {num}}
-     * substitution and keeps Opt-specific escaping (escapeName), while the
-     * plain variant keeps plain escaping (escapeQuotes).
+     * AC1: {@code {num}} is substituted per file in the arguments that are
+     * actually executed, and a name with quotes and backslashes reaches
+     * mkvpropedit verbatim (one argument, no escaping artifacts).
      */
     private static void checkOptVariantSubstitutesNumAndKeepsOptEscaping(TrackType type) throws Exception {
         JMkvpropedit w = newWindow();
@@ -73,7 +73,6 @@ public final class TrackManagementChecks {
         slot.chbEdit.setSelected(true);
         slot.chbName.setSelected(true);
         slot.chbNumb.setSelected(true);
-        // Distinguishes escapeQuotes (A\"B\{num}) from escapeName (A####escaped__quotes#####B\\{num}).
         slot.txtName.setText("A\"B\\{num}");
         slot.txtNumbStart.setText("7");
         slot.txtNumbPad.setText("2");
@@ -83,28 +82,27 @@ public final class TrackManagementChecks {
         modelFiles.addElement("C:\\clips\\first.mkv");
         modelFiles.addElement("C:\\clips\\second.mkv");
 
-        call(w, "setCmdLine" + type.label());
+        call(w, "setCmdLine");
 
-        String selector = String.valueOf(type.selector());
-        String[] plain = (String[]) get(w, "cmdLine" + type.label());
-        String[] opt = (String[]) get(w, "cmdLine" + type.label() + "Opt");
+        String track = "track:" + type.selector() + "1";
+        @SuppressWarnings("unchecked")
+        java.util.List<java.util.List<String>> args =
+                (java.util.List<java.util.List<String>>) get(w, "cmdLineBatchOpt");
+        @SuppressWarnings("unchecked")
+        java.util.List<String> lines = (java.util.List<String>) get(w, "cmdLineBatch");
 
-        String plainExpected0 = "--edit track:" + selector + "1 --set name=\"A\\\"B\\07\"";
-        String optExpected0 = "--edit track:" + selector
-                + "1 --set name=\"A####escaped__quotes#####B\\\\07\"";
-        String optExpected1 = "--edit track:" + selector
-                + "1 --set name=\"A####escaped__quotes#####B\\\\08\"";
+        check(type.label() + ": one argument list per file", args.size() == 2, "got: " + args);
+        java.util.List<String> first = args.get(0);
+        java.util.List<String> second = args.get(1);
+        int at = first.indexOf(track);
 
-        check(type.label() + ": plain variant numbering and escaping", plain[0].contains(plainExpected0),
-                "got: " + plain[0]);
-        check(type.label() + ": opt variant contains {num} substitution", opt[0].contains("B\\\\07"),
-                "got: " + opt[0]);
-        check(type.label() + ": opt variant keeps opt escaping", opt[0].contains(optExpected0),
-                "got: " + opt[0]);
-        check(type.label() + ": opt variant numbering follows the file index", opt[1].contains(optExpected1),
-                "got: " + opt[1]);
-        check(type.label() + ": plain escaping does not leak into the opt variant", !opt[0].contains("A\\\"B"),
-                "got: " + opt[0]);
+        check(type.label() + ": track selector is present", at > 0, "got: " + first);
+        check(type.label() + ": name with {num} reaches mkvpropedit verbatim",
+                at > 0 && first.subList(at + 1, first.size()).contains("name=A\"B\\07"), "got: " + first);
+        check(type.label() + ": numbering follows the file index", second.contains("name=A\"B\\08"),
+                "got: " + second);
+        check(type.label() + ": display line shows the substituted name",
+                lines.size() == 2 && lines.get(0).contains("A") && lines.get(0).contains("07"), "got: " + lines);
     }
 
     /**

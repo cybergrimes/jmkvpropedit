@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -87,26 +88,46 @@ class ProcessRunnerTest {
     }
 
     @Test
-    void optionsFileRunWritesTheContentRunsTheCommandAndRemovesTheFile() throws Exception {
-        Path options = tempDir.resolve("options.json");
-        ProcessRunner runner = new ProcessRunner(javaExecutable(), options);
-        List<String> out = new ArrayList<>();
-
-        runner.runWithOptionsFile("-version\n", out::add);
-
-        assertFalse(Files.exists(options), "options file must be removed after the run");
-        assertFalse(out.isEmpty(),
-                "the command must have read the options file and produced output");
+    void runReturnsTheProcessExitCode() throws Exception {
+        assertEquals(0, ProcessRunner.run(List.of(javaExecutable(), "-version"), line -> { }));
+        assertEquals(1, ProcessRunner.run(List.of(javaExecutable(), "-cp", tempDir.toString(), "NoSuchMainClass"),
+                line -> { }));
     }
 
     @Test
-    void optionsFileRunRemovesTheFileWhenTheExecutableIsMissing() {
-        Path options = tempDir.resolve("options.json");
-        ProcessRunner runner = new ProcessRunner("jmkvpropedit-missing-probe.exe", options);
+    void optionsFileRunUsesAUniqueTempFileAndRemovesIt() throws Exception {
+        ProcessRunner runner = new ProcessRunner(javaExecutable(), tempDir);
         List<String> out = new ArrayList<>();
 
-        assertThrows(IOException.class, () -> runner.runWithOptionsFile("[]\n", out::add));
+        // java reads @argfiles too, so "-version" in the file proves the file was passed.
+        int exitCode = runner.runWithOptionsFile("-version\n", out::add);
 
-        assertFalse(Files.exists(options), "options file must be removed even when the launch fails");
+        assertEquals(0, exitCode);
+        assertFalse(out.isEmpty(), "the command must have read the options file and produced output");
+        try (Stream<Path> left = Files.list(tempDir)) {
+            assertEquals(0, left.count(), "options file must be removed after the run");
+        }
+    }
+
+    @Test
+    void optionsFileRunRemovesTheFileWhenTheExecutableIsMissing() throws Exception {
+        ProcessRunner runner = new ProcessRunner("jmkvpropedit-missing-probe.exe", tempDir);
+
+        assertThrows(IOException.class, () -> runner.runWithOptions(List.of("a.mkv"), line -> { }));
+
+        try (Stream<Path> left = Files.list(tempDir)) {
+            assertEquals(0, left.count(), "options file must be removed even when the launch fails");
+        }
+    }
+
+    @Test
+    void optionsFileDoesNotDependOnTheWorkingDirectory() throws Exception {
+        ProcessRunner runner = new ProcessRunner(javaExecutable());
+        Path cwdOptions = Path.of("options.json");
+        boolean existedBefore = Files.exists(cwdOptions);
+
+        runner.runWithOptionsFile("-version\n", line -> { });
+
+        assertEquals(existedBefore, Files.exists(cwdOptions), "nothing is written to the working directory");
     }
 }

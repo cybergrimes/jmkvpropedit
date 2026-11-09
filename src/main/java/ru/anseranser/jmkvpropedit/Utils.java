@@ -61,38 +61,6 @@ public class Utils {
 
     /* End of OS detection functions */
 
-    /* Start of escaping functions */
-
-    public static String escapeName(String name) {
-        if (!name.isEmpty()) {
-            name = name.replace("\"", "####escaped__quotes#####"); // lol
-            name = name.replace("\\", "\\\\");
-        }
-
-        return name;
-    }
-
-    public static String escapeQuotes(String text) {
-        text = text.replace("\"", "\\\"");
-        return text;
-    }
-
-    public static String escapeBackslashes(String text) {
-        text = text.replace("\\", "\\\\");
-
-        return text;
-    }
-
-    public static String fixEscapedQuotes(String text) {
-        if (!text.isEmpty()) {
-            text = text.replace("####escaped__quotes#####", "\\\"");
-        }
-
-        return text;
-    }
-
-    /* End of escaping functions */
-
     /* Start of right-click menu code */
 
     private static void showRCMenu(JTextComponent text, MouseEvent e) {

@@ -5,6 +5,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
@@ -68,6 +69,10 @@ public final class FileScanner {
         try (Stream<Path> walk = Files.walk(folder)) {
             return walk.filter(Files::isRegularFile)
                     .filter(FileScanner::isMatroskaFile)
+                    // Disk order is arbitrary; {num} numbering follows list
+                    // order, so sort like a file manager would (case-insensitive).
+                    .sorted(Comparator.comparing((Path p) -> p.toString().toLowerCase(Locale.ROOT))
+                            .thenComparing(Comparator.naturalOrder()))
                     .toList();
         }
     }

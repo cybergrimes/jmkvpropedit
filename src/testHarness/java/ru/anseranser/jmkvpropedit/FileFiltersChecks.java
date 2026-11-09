@@ -112,8 +112,9 @@ public final class FileFiltersChecks {
             touch(new File(subDir, "nested.mka"));
 
             call(w, "addMkvFilesFromFolder", folder);
-            // The scan is posted to the EDT via invokeLater; flush it.
-            SwingUtilities.invokeAndWait(() -> { });
+            // The scan runs in a background SwingWorker and adds its results on
+            // the EDT when done; wait for the list to fill (bounded).
+            waitForFiles(w, 3, 10_000);
 
             @SuppressWarnings("unchecked")
             javax.swing.DefaultListModel<String> modelFiles =
@@ -303,6 +304,26 @@ public final class FileFiltersChecks {
         } else {
             failed++;
             System.out.println("FAIL  " + what + "  (" + detail + ")");
+        }
+    }
+
+    private static void waitForFiles(JMkvpropedit w, int expected, long timeoutMs) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            final int[] size = new int[1];
+            SwingUtilities.invokeAndWait(() -> {
+                try {
+                    size[0] = ((javax.swing.DefaultListModel<?>) get(w, "modelFiles")).getSize();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            if (size[0] >= expected) {
+                // let any remaining EDT work settle
+                SwingUtilities.invokeAndWait(() -> { });
+                return;
+            }
+            Thread.sleep(20);
         }
     }
 }

@@ -65,4 +65,16 @@ class FileScannerTest {
     void scanOfAMissingFolderFails(@TempDir Path folder) {
         assertThrows(IOException.class, () -> FileScanner.scanMatroskaFiles(folder.resolve("missing")));
     }
+
+    @Test
+    void scanResultsAreSortedSoNumberingFollowsEpisodeOrder(@TempDir Path folder) throws Exception {
+        for (String name : new String[] { "S01E05.mkv", "s01e03.mkv", "S01E01.mkv", "S01E04.mkv", "S01E02.mkv" }) {
+            Files.createFile(folder.resolve(name));
+        }
+
+        List<String> names = FileScanner.scanMatroskaFiles(folder).stream()
+                .map(p -> p.getFileName().toString()).toList();
+
+        assertEquals(List.of("S01E01.mkv", "S01E02.mkv", "s01e03.mkv", "S01E04.mkv", "S01E05.mkv"), names);
+    }
 }

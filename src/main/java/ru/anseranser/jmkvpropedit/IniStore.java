@@ -81,6 +81,10 @@ public final class IniStore {
     public void saveMkvpropedit(String exePath) throws IniStoreException {
         try {
             if (!iniFile.exists()) {
+                File parent = iniFile.getAbsoluteFile().getParentFile();
+                if (parent != null) {
+                    parent.mkdirs();
+                }
                 iniFile.createNewFile();
             }
 

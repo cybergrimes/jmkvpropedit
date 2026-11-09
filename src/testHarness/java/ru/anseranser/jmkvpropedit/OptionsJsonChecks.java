@@ -71,14 +71,13 @@ public final class OptionsJsonChecks {
      * result parses as strict JSON with the original values.
      */
     private static void checkCraftedRoundTrip(String what, String data) {
-        // Built exactly like production composes Opt command lines (escapeName
-        // around quoted values), so the crack+write path under test is the real one.
-        String line = "\"" + Utils.escapeName(data) + "\""
-                + " --set name=\"" + Utils.escapeName(data) + "\"";
+        // Production passes the argument list straight to the options file
+        // writer; nothing is joined into a string and re-split any more.
+        List<String> args = List.of(data, "--set", "name=" + data);
 
         List<String> parsed;
         try {
-            parsed = parseStringArray(JMkvpropedit.optionsJson(JMkvpropedit.toOptArgs(line)));
+            parsed = parseStringArray(OptionsFile.json(args));
         } catch (RuntimeException e) {
             check("crafted " + what + ": options.json is valid JSON", false,
                     e + ", data=" + flat(data));
@@ -93,7 +92,7 @@ public final class OptionsJsonChecks {
 
     /** AC: an argument-less options file is still a valid empty JSON array. */
     private static void checkEmptyArgsProduceEmptyArray() {
-        String json = JMkvpropedit.optionsJson(new String[0]);
+        String json = OptionsFile.json(List.of());
 
         try {
             List<String> parsed = parseStringArray(json);
@@ -137,8 +136,8 @@ public final class OptionsJsonChecks {
         call(w, "setCmdLine");
 
         @SuppressWarnings("unchecked")
-        List<String[]> batchOpt = (List<String[]>) get(w, "cmdLineBatchOpt");
-        String json = JMkvpropedit.optionsJson(batchOpt.get(0));
+        List<List<String>> batchOpt = (List<List<String>>) get(w, "cmdLineBatchOpt");
+        String json = OptionsFile.json(batchOpt.get(0));
 
         List<String> parsed;
         try {

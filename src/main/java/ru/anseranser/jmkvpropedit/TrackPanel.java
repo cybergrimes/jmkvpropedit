@@ -148,12 +148,17 @@ public final class TrackPanel extends JPanel {
         for (TrackSlot slot : slots) {
             boolean setLanguage = slot.chbLang.isSelected();
 
+            String language = null;
+            if (setLanguage) {
+                // A typed BCP 47 tag wins over the list selection.
+                String tag = slot.txtLangTag.getText().trim();
+                language = tag.isEmpty() ? langCodes.get(slot.cbLang.getSelectedIndex()) : tag;
+            }
+
             settings.add(new CommandBuilder.TrackSettings(slot.chbEdit.isSelected(),
-                    slot.chbEnable.isSelected(), slot.rbYesEnable.isSelected(),
-                    slot.chbDefault.isSelected(), slot.rbYesDef.isSelected(),
-                    slot.chbForced.isSelected(), slot.rbYesForced.isSelected(),
+                    slot.selectedFlags(),
                     slot.chbName.isSelected(), slot.txtName.getText(),
-                    setLanguage, setLanguage ? langCodes.get(slot.cbLang.getSelectedIndex()) : null,
+                    setLanguage, language,
                     slot.chbExtra.isSelected(), slot.txtExtra.getText(),
                     slot.chbNumb.isSelected(), slot.txtNumbStart.getText(), slot.txtNumbPad.getText()));
         }

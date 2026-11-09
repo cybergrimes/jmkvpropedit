@@ -42,12 +42,26 @@ One shared track panel per media type (unified component; the three tabs differ 
 
 - **Track list** — combo of tracks for the current type; **Add** / **Remove** tracks (remove is disabled while only one track remains; Opt-mode gets the same `{num}` numbering as the plain command).
 - Per-track settings (each with an **Edit this track** switch):
-  - Enable / disable track
-  - Default track, Forced flags
+  - Flags, each set to Yes or No only when ticked:
+    Enabled, Default, Forced, Original language, Hearing impaired (e.g. SDH subtitles),
+    Visual impaired (e.g. audio description), Text descriptions, Commentary.
+    The last five need MKVToolNix 57 or newer.
   - Track name (with numbering placeholders)
-  - Language (ISO code combo backed by the bundled language list)
+  - Language: pick from the bundled ISO 639 list, or type an IETF BCP 47 tag
+    (`en-US`, `pt-BR`, `es-419`, `zh-Hant`) which then overrides the list. Tags are
+    checked for well-formedness before running; mkvpropedit stores both the
+    BCP 47 tag and the matching legacy code.
   - Extra parameters
-- **Opt variant** — a second command line using mkvpropedit’s `--edit track:@<num>`-style numbering so batch runs can address tracks by index instead of a fixed selector.
+- A track is only edited when **Edit this track** is on *and* at least one property is set, so an empty slot never produces a bare `--edit track:a2` (which fails on files without that track).
+
+#### Extra parameters (General and per track)
+
+Free-form `mkvpropedit` arguments, split like a shell would, with a few friendlier rules:
+
+- Whitespace separates arguments; `"double quotes"` group text anywhere (`--set "title=A B"` or `--set title="A B"`).
+- Backslashes are literal (Windows paths need no escaping); inside double quotes `\"` is a literal quote.
+- `'single quotes'` group only at the start of an argument, so `name=Director's` keeps its apostrophe.
+- An unclosed quote is reported as an error instead of being silently dropped.
 
 ### Attachments
 
@@ -62,16 +76,23 @@ Three operations in one panel (unified table + controls):
 ### Options
 
 - Path to the **`mkvpropedit` executable** (or **Use default** — resolves `mkvpropedit` from `PATH`).
-- Persisted in `JMkvpropedit.ini` next to the working directory (created on first save).
+- Persisted in `JMkvpropedit.ini` in the per-user config folder (created on first save):
+  - Windows: `%APPDATA%\JMkvpropedit\`
+  - macOS: `~/Library/Application Support/JMkvpropedit/`
+  - Linux: `$XDG_CONFIG_HOME/jmkvpropedit/` (default `~/.config/jmkvpropedit/`)
+- A `JMkvpropedit.ini` left in the working directory by an older version is copied over once on first start.
 
 ### Output / run
 
 | Button | Effect |
 |--------|--------|
-| **Generate command line** | Preview the `mkvpropedit` command(s) that would run for the current settings. |
-| **Process files** | Run the batch: for each file, write an options JSON payload, invoke `mkvpropedit`, stream UTF-8 output into the **Output** tab. The UI stays responsive (SwingWorker + EDT-safe logging). |
+| **Generate command line** | Preview the `mkvpropedit` command(s) that would run. The preview is rendered from the exact argument list that runs, shell-quoted for the current platform, so it can be copy-pasted. |
+| **Process files** | Run the batch: for each file, write the arguments to a unique temporary JSON options file, invoke `mkvpropedit @file`, stream UTF-8 output into the **Output** tab, then delete the file. The UI stays responsive (SwingWorker + EDT-safe logging). |
+| **Stop after current file** | While a batch runs, the Process button becomes a stop button. mkvpropedit edits files in place, so it is never killed mid-file; closing the window during a batch works the same way. |
 
-Output tab shows the live log of every invocation (success/errors), suitable for copy-paste debugging.
+The Output tab shows the live log of every invocation, each non-zero `mkvpropedit` exit code, and a closing summary: how many files succeeded, had warnings (exit code 1) or failed (exit code 2), how many were skipped after a stop, and which files need attention.
+
+Folder scans run in the background and add files in sorted (case-insensitive) order, so `{num}` numbering follows episode order.
 
 ---
 
@@ -173,7 +194,6 @@ The installer/app-image **bundles a Java 21 runtime**, so end users do not need 
 │   ├── main/resources/       # icons, langcodes.txt, langnames.txt, mimetypes.txt
 │   ├── test/java/.../        # JUnit 5 unit tests
 │   └── testHarness/java/.../ # framework-free manual check programs (outside Gradle test task)
-├── JMkvpropedit.ini          # created at runtime (mkvpropedit path)
 └── readme.txt                # short plain-text blurb
 ```
 
@@ -182,12 +202,19 @@ The installer/app-image **bundles a Java 21 runtime**, so end users do not need 
 | Class | Responsibility |
 |-------|----------------|
 | `JMkvpropedit` | UI shell: window, tabs, wiring only. |
-| `CommandBuilder` | Pure settings → `mkvpropedit` argument lists (plain + Opt). |
+| `CommandBuilder` | Pure settings → `mkvpropedit` argument lists (one value per argument, never re-parsed). |
+| `ArgumentSplitter` | Splits the "Extra parameters" fields into arguments. |
+| `CommandLineFormatter` | Renders an argument list as a copy-pasteable display line. |
+| `OptionsFile` | Writes the `mkvpropedit @file.json` options file. |
+| `BatchSummary` | Per-file outcome tally and the end-of-batch report. |
+| `AppPaths` | Per-user settings location and one-time migration of an old `JMkvpropedit.ini`. |
 | `TrackPanel` / `TrackSlot` / `TrackType` | Unified video/audio/subtitle track UI. |
+| `TrackFlag` | The yes/no track flags and their mkvpropedit property names. |
+| `LanguageTags` | BCP 47 well-formedness check for typed language tags. |
 | `AttachmentPanel` (+ model/operation/selector) | Unified add/replace/delete attachment UI. |
-| `ProcessRunner` | Spawn `mkvpropedit`, stream UTF-8 output, options-file lifecycle. |
+| `ProcessRunner` | Spawn `mkvpropedit`, stream UTF-8 output, temp options-file lifecycle, exit codes. |
 | `IniStore` | Read/write `JMkvpropedit.ini` (ini4j). |
-| `FileScanner` | Recursive Matroska folder scan (`Files.walk` + glob). |
+| `FileScanner` | Recursive, sorted Matroska folder scan (`Files.walk` + glob). |
 | `FileDrop` | Optional drag-and-drop onto text fields (no-op when headless). |
 | `Utils` | Context menus and small Swing helpers. |
 

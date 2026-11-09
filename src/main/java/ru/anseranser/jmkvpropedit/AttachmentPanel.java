@@ -753,130 +753,18 @@ public final class AttachmentPanel extends JPanel {
         return cbMime.getSelectedItem().toString();
     }
 
-    /* Command lines: the former setCmdLineAttachments* trio of the god class. */
+    /* Command-line arguments for this operation's rows. */
 
     /**
-     * The plain mkvpropedit arguments for this operation's rows: {@code
+     * The mkvpropedit arguments for this operation's rows ({@code
      * --add-attachment}, {@code --replace-attachment} or {@code
-     * --delete-attachment} with their metadata options, assembled exactly like
-     * the original builders (including the unescaped ID originals).
+     * --delete-attachment} with their metadata options), one value per
+     * argument and unescaped.
      *
-     * @return the plain command-line fragment, empty for no rows
+     * @return the arguments, empty for no rows
      */
-    public String cmdLine() {
-        return buildCmdLines().plain();
-    }
-
-    /**
-     * The Opt-file variant of {@link #cmdLine()} with
-     * {@link Utils#escapeName} applied where the original applied it.
-     *
-     * @return the Opt command-line fragment, empty for no rows
-     */
-    public String cmdLineOpt() {
-        return buildCmdLines().opt();
-    }
-
-    private CmdLines buildCmdLines() {
-        StringBuilder plain = new StringBuilder();
-        StringBuilder opt = new StringBuilder();
-
-        for (int i = 0; i < model.getRowCount(); i++) {
-            switch (operation) {
-                case ADD -> appendAddArgs(i, plain, opt);
-                case REPLACE -> appendReplaceArgs(i, plain, opt);
-                case DELETE -> appendDeleteArgs(i, plain, opt);
-            }
-        }
-
-        return new CmdLines(plain.toString(), opt.toString());
-    }
-
-    private void appendAddArgs(int row, StringBuilder plain, StringBuilder opt) {
-        String file = model.valueAt(row, 0);
-        appendMetaArgs(model.valueAt(row, 1), model.valueAt(row, 2), model.valueAt(row, 3),
-                plain, opt);
-
-        plain.append(" --add-attachment \"").append(file).append('"');
-        opt.append(" --add-attachment \"").append(Utils.escapeName(file)).append('"');
-    }
-
-    private void appendReplaceArgs(int row, StringBuilder plain, StringBuilder opt) {
-        String type = model.valueAt(row, 0);
-        String orig = model.valueAt(row, 1);
-        String replace = model.valueAt(row, 2);
-        appendMetaArgs(model.valueAt(row, 3), model.valueAt(row, 4), model.valueAt(row, 5),
-                plain, opt);
-
-        switch (AttachmentSelector.fromLabel(type)) {
-            case NAME -> {
-                plain.append(" --replace-attachment \"name:").append(orig).append(':')
-                        .append(replace).append('"');
-                opt.append(" --replace-attachment \"name:").append(Utils.escapeName(orig))
-                        .append(':').append(Utils.escapeName(replace)).append('"');
-            }
-            case ID -> {
-                // The ID original value stays unescaped, like the original.
-                plain.append(" --replace-attachment \"").append(orig).append(':')
-                        .append(replace).append('"');
-                opt.append(" --replace-attachment \"").append(orig).append(':')
-                        .append(Utils.escapeName(replace)).append('"');
-            }
-            case MIME_TYPE -> {
-                plain.append(" --replace-attachment \"mime-type:").append(orig).append(':')
-                        .append(replace).append('"');
-                opt.append(" --replace-attachment \"mime-type:").append(Utils.escapeName(orig))
-                        .append(':').append(Utils.escapeName(replace)).append('"');
-            }
-        }
-    }
-
-    private void appendDeleteArgs(int row, StringBuilder plain, StringBuilder opt) {
-        String type = model.valueAt(row, 0);
-        String value = model.valueAt(row, 1);
-
-        switch (AttachmentSelector.fromLabel(type)) {
-            case NAME -> {
-                plain.append(" --delete-attachment \"name:").append(value).append('"');
-                opt.append(" --delete-attachment \"name:").append(Utils.escapeName(value))
-                        .append('"');
-            }
-            case ID -> {
-                plain.append(" --delete-attachment \"").append(value).append('"');
-                opt.append(" --delete-attachment \"").append(value).append('"');
-            }
-            case MIME_TYPE -> {
-                plain.append(" --delete-attachment \"mime-type:").append(value).append('"');
-                opt.append(" --delete-attachment \"mime-type:").append(Utils.escapeName(value))
-                        .append('"');
-            }
-        }
-    }
-
-    /**
-     * The shared {@code --attachment-name/-description/-mime-type} preamble of
-     * add and replace rows: emitted per field only when the field is
-     * non-empty, as both original builders did.
-     */
-    private static void appendMetaArgs(String name, String desc, String mime,
-            StringBuilder plain, StringBuilder opt) {
-        if (!name.isEmpty()) {
-            plain.append(" --attachment-name \"").append(name).append('"');
-            opt.append(" --attachment-name \"").append(Utils.escapeName(name)).append('"');
-        }
-
-        if (!desc.isEmpty()) {
-            plain.append(" --attachment-description \"").append(desc).append('"');
-            opt.append(" --attachment-description \"").append(Utils.escapeName(desc)).append('"');
-        }
-
-        if (!mime.isEmpty()) {
-            plain.append(" --attachment-mime-type \"").append(mime).append('"');
-            opt.append(" --attachment-mime-type \"").append(Utils.escapeName(mime)).append('"');
-        }
-    }
-
-    private record CmdLines(String plain, String opt) {
+    public List<String> args() {
+        return CommandBuilder.attachmentArgs(operation, model.rows());
     }
 
     private record SelectorValue(String label, String value) {

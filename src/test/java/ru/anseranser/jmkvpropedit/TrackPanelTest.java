@@ -291,6 +291,79 @@ class TrackPanelTest {
         assertFalse(slot.txtExtra.isEnabled());
     }
 
+    @Test
+    void newerFlagsAreReadWithTheirYesNoChoice() {
+        TrackPanel panel = new TrackPanel(TrackType.SUBTITLE, mkvStrings);
+        panel.addTrack();
+        TrackSlot slot = panel.slots().get(0);
+
+        slot.chbEdit.setSelected(true);
+        slot.flags.get(TrackFlag.HEARING_IMPAIRED).box.setSelected(true); // Yes stays selected
+        slot.flags.get(TrackFlag.COMMENTARY).box.setSelected(true);
+        slot.flags.get(TrackFlag.COMMENTARY).no.setSelected(true);
+
+        CommandBuilder.TrackSettings s = panel.trackSettings().get(0);
+
+        assertEquals(java.util.Map.of(TrackFlag.HEARING_IMPAIRED, true, TrackFlag.COMMENTARY, false), s.flags());
+    }
+
+    @Test
+    void typedLanguageTagOverridesTheListSelection() {
+        TrackPanel panel = new TrackPanel(TrackType.AUDIO, mkvStrings);
+        panel.addTrack();
+        TrackSlot slot = panel.slots().get(0);
+
+        slot.chbEdit.setSelected(true);
+        slot.chbLang.setSelected(true);
+        slot.cbLang.setSelectedIndex(mkvStrings.getLangCodeList().indexOf("spa"));
+
+        assertEquals("spa", panel.trackSettings().get(0).language());
+
+        slot.txtLangTag.setText(" es-419 ");
+        assertEquals("es-419", panel.trackSettings().get(0).language());
+
+        slot.txtLangTag.setText("   ");
+        assertEquals("spa", panel.trackSettings().get(0).language(), "a blank tag falls back to the list");
+    }
+
+    @ParameterizedTest
+    @EnumSource(TrackType.class)
+    void everyFlagAndTheLanguageTagFollowTheEditCheckbox(TrackType type) {
+        TrackPanel panel = new TrackPanel(type, mkvStrings);
+        panel.addTrack();
+        TrackSlot slot = panel.slots().get(0);
+
+        assertEquals(TrackFlag.values().length, slot.flags.size());
+        for (TrackSlot.FlagControls f : slot.flags.values()) {
+            assertFalse(f.box.isEnabled(), f.box.getText());
+        }
+
+        click(slot.chbEdit);
+        for (TrackSlot.FlagControls f : slot.flags.values()) {
+            assertTrue(f.box.isEnabled(), f.box.getText());
+            assertFalse(f.yes.isEnabled(), f.box.getText());
+        }
+
+        TrackSlot.FlagControls commentary = slot.flags.get(TrackFlag.COMMENTARY);
+        click(commentary.box);
+        assertTrue(commentary.yes.isEnabled());
+        assertTrue(commentary.no.isEnabled());
+
+        assertFalse(slot.txtLangTag.isEnabled());
+        click(slot.chbLang);
+        assertTrue(slot.txtLangTag.isEnabled());
+        assertTrue(slot.cbLang.isEnabled());
+
+        click(slot.chbEdit);
+        assertFalse(commentary.box.isEnabled());
+        assertFalse(commentary.yes.isEnabled());
+        assertFalse(slot.txtLangTag.isEnabled());
+
+        click(slot.chbEdit);
+        assertTrue(commentary.yes.isEnabled(), "a ticked flag's radios come back with Edit");
+        assertTrue(slot.txtLangTag.isEnabled(), "a ticked language's controls come back with Edit");
+    }
+
     @ParameterizedTest
     @EnumSource(TrackType.class)
     void numberingFieldsResetInvalidValuesOnFocusLost(TrackType type) {
@@ -318,7 +391,7 @@ class TrackPanelTest {
         panel.addTrack();
 
         String text = panel.slots().get(0).lblNumbExplain.getText();
-        assertTrue(text.contains("\"My " + type.nameExample() + " {num}\""), "got: " + text);
+        assertTrue(text.contains("\"" + type.nameExample() + " {num}\""), "got: " + text);
     }
 
     /* Harness plumbing */

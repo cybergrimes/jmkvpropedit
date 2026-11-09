@@ -103,4 +103,13 @@ class IniStoreTest {
 
         assertTrue(e.getMessage().startsWith("could not save JMkvpropedit.ini"), e.getMessage());
     }
+
+    @Test
+    void saveCreatesMissingParentFolders() throws Exception {
+        Path nested = tempDir.resolve("a").resolve("b").resolve("JMkvpropedit.ini");
+
+        new IniStore(nested.toFile()).saveMkvpropedit("/usr/bin/mkvpropedit");
+
+        assertEquals("/usr/bin/mkvpropedit", new IniStore(nested.toFile()).readMkvpropedit());
+    }
 }

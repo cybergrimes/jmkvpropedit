@@ -548,27 +548,23 @@ class AttachmentPanelTest {
         assertEquals("0", delete.valueField().getText());
     }
 
-    /* Command lines (formerly setCmdLineAttachments* in the god class) */
+    /* Arguments (formerly setCmdLineAttachments* in the god class) */
 
     @Test
-    void addCommandLineEmitsMetadataOnlyWhenPresent() {
+    void addArgsEmitMetadataOnlyWhenPresent() {
         AttachmentPanel add = panel(AttachmentOperation.ADD);
         add.model().addRow(new String[] { "C:\\a.png", "", "", "" });
         add.model().addRow(
                 new String[] { "C:\\b.png", "b.png", "B image", "image/png" });
 
-        assertEquals(" --add-attachment \"C:\\a.png\""
-                + " --attachment-name \"b.png\" --attachment-description \"B image\""
-                + " --attachment-mime-type \"image/png\" --add-attachment \"C:\\b.png\"",
-                add.cmdLine());
-        assertEquals(" --add-attachment \"C:\\\\a.png\""
-                + " --attachment-name \"b.png\" --attachment-description \"B image\""
-                + " --attachment-mime-type \"image/png\" --add-attachment \"C:\\\\b.png\"",
-                add.cmdLineOpt());
+        assertEquals(List.of("--add-attachment", "C:\\a.png",
+                "--attachment-name", "b.png", "--attachment-description", "B image",
+                "--attachment-mime-type", "image/png", "--add-attachment", "C:\\b.png"),
+                add.args());
     }
 
     @Test
-    void replaceCommandLineUsesTheSelectorPrefixOfEachRow() {
+    void replaceArgsUseTheSelectorPrefixOfEachRow() {
         AttachmentPanel replace = panel(AttachmentOperation.REPLACE);
         replace.model().addRow(
                 new String[] { AttachmentSelector.NAME.label(), "cover", "C:\\new.png", "n", "", "" });
@@ -577,44 +573,40 @@ class AttachmentPanelTest {
         replace.model().addRow(new String[] { AttachmentSelector.MIME_TYPE.label(), "image/png",
                 "C:\\new.png", "", "", "" });
 
-        assertEquals(" --attachment-name \"n\""
-                + " --replace-attachment \"name:cover:C:\\new.png\""
-                + " --replace-attachment \"1:C:\\new.png\""
-                + " --replace-attachment \"mime-type:image/png:C:\\new.png\"",
-                replace.cmdLine());
-        // The ID original value is never escaped, as in the original builder.
-        assertEquals(" --attachment-name \"n\""
-                + " --replace-attachment \"name:cover:C:\\\\new.png\""
-                + " --replace-attachment \"1:C:\\\\new.png\""
-                + " --replace-attachment \"mime-type:image/png:C:\\\\new.png\"",
-                replace.cmdLineOpt());
+        assertEquals(List.of("--attachment-name", "n",
+                "--replace-attachment", "name:cover:C:\\new.png",
+                "--replace-attachment", "1:C:\\new.png",
+                "--replace-attachment", "mime-type:image/png:C:\\new.png"),
+                replace.args());
     }
 
     @Test
-    void deleteCommandLineUsesTheSelectorPrefixOfEachRow() {
+    void deleteArgsUseTheSelectorPrefixOfEachRow() {
         AttachmentPanel delete = panel(AttachmentOperation.DELETE);
         delete.model().addRow(new String[] { AttachmentSelector.NAME.label(), "cover" });
         delete.model().addRow(new String[] { AttachmentSelector.ID.label(), "3" });
         delete.model().addRow(new String[] { AttachmentSelector.MIME_TYPE.label(), "image/png" });
 
-        assertEquals(" --delete-attachment \"name:cover\""
-                + " --delete-attachment \"3\""
-                + " --delete-attachment \"mime-type:image/png\"",
-                delete.cmdLine());
-        assertEquals(" --delete-attachment \"name:cover\""
-                + " --delete-attachment \"3\""
-                + " --delete-attachment \"mime-type:image/png\"",
-                delete.cmdLineOpt());
+        assertEquals(List.of("--delete-attachment", "name:cover",
+                "--delete-attachment", "3",
+                "--delete-attachment", "mime-type:image/png"),
+                delete.args());
     }
 
     @Test
-    void commandLinesOfAnEmptyModelAreEmpty() {
-        assertEquals("", panel(AttachmentOperation.ADD).cmdLine());
-        assertEquals("", panel(AttachmentOperation.ADD).cmdLineOpt());
-        assertEquals("", panel(AttachmentOperation.REPLACE).cmdLine());
-        assertEquals("", panel(AttachmentOperation.REPLACE).cmdLineOpt());
-        assertEquals("", panel(AttachmentOperation.DELETE).cmdLine());
-        assertEquals("", panel(AttachmentOperation.DELETE).cmdLineOpt());
+    void attachmentValuesWithQuotesAndSpacesStayOneArgument() {
+        AttachmentPanel add = panel(AttachmentOperation.ADD);
+        add.model().addRow(new String[] { "/fonts/My \"Bold\" Font.ttf", "Bold's font", "", "" });
+
+        assertEquals(List.of("--attachment-name", "Bold's font",
+                "--add-attachment", "/fonts/My \"Bold\" Font.ttf"), add.args());
+    }
+
+    @Test
+    void argsOfAnEmptyModelAreEmpty() {
+        assertTrue(panel(AttachmentOperation.ADD).args().isEmpty());
+        assertTrue(panel(AttachmentOperation.REPLACE).args().isEmpty());
+        assertTrue(panel(AttachmentOperation.DELETE).args().isEmpty());
     }
 
     @ParameterizedTest

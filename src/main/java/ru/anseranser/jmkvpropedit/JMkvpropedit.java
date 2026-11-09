@@ -47,7 +47,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -88,9 +91,18 @@ public class JMkvpropedit implements AttachmentPanel.Host {
     private static final String VERSION_NUMBER = BuildVersion.VERSION;
     private static String[] argsArray;
 
+    private static final String PROCESS_LABEL = "Process files";
+    private static final String STOP_LABEL = "Stop after current file";
+
     private SwingWorker<Void, Void> worker;
 
-    private final IniStore iniStore = new IniStore(new File("JMkvpropedit.ini"));
+    /** Set from the EDT, read by the batch worker between files. */
+    private volatile boolean stopRequested;
+
+    /** Exit once the running batch has stopped (window closed mid-batch). */
+    private boolean exitWhenDone;
+
+    private final IniStore iniStore = new IniStore(AppPaths.prepareConfigFile().toFile());
     private static final MkvStrings mkvStrings = new MkvStrings();
     private final CommandBuilder commandBuilder = new CommandBuilder();
 
@@ -125,20 +137,11 @@ public class JMkvpropedit implements AttachmentPanel.Host {
 
     private final FileFilter XML_EXT_FILTER = new FileNameExtensionFilter("XML files (*.xml)", "xml");
 
-    private String[] cmdLineGeneral;
-    private String[] cmdLineGeneralOpt;
+    /** Display command lines, one per file (what "Generate command line" shows). */
+    private List<String> cmdLineBatch = List.of();
 
-    private String[] cmdLineVideo;
-    private String[] cmdLineVideoOpt;
-
-    private String[] cmdLineAudio;
-    private String[] cmdLineAudioOpt;
-
-    private String[] cmdLineSubtitle;
-    private String[] cmdLineSubtitleOpt;
-
-    private List<String> cmdLineBatch;
-    private List<String[]> cmdLineBatchOpt;
+    /** The real arguments, one list per file (file + edits), passed via the options file. */
+    private List<List<String>> cmdLineBatchOpt = List.of();
 
     // Window controls
     private Dimension frmJMkvpropeditDim = new Dimension(0, 0);
@@ -653,7 +656,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         JPanel pnlButtons = new JPanel();
         frmJMkvpropedit.getContentPane().add(pnlButtons, BorderLayout.SOUTH);
 
-        btnProcessFiles = new JButton("Process files");
+        btnProcessFiles = new JButton(PROCESS_LABEL);
         pnlButtons.add(btnProcessFiles);
 
         btnGenerateCmdLine = new JButton("Generate command line");
@@ -706,12 +709,21 @@ public class JMkvpropedit implements AttachmentPanel.Host {
                 boolean wRunning = worker != null && !worker.isDone();
 
                 if (wRunning) {
-                    int choice = JOptionPane.showConfirmDialog(frmJMkvpropedit, "Do you really want to exit?", "",
-                            JOptionPane.YES_NO_OPTION);
+                    // Never kill mkvpropedit mid-write: it edits the file in
+                    // place, so finish the current file, then exit.
+                    int choice = JOptionPane.showConfirmDialog(frmJMkvpropedit,
+                            "Files are still being processed.\n"
+                                    + "Stop after the current file and exit?",
+                            "", JOptionPane.YES_NO_OPTION);
                     if (choice == JOptionPane.YES_OPTION) {
-                        worker.cancel(true);
-                        frmJMkvpropedit.dispose();
-                        System.exit(0);
+                        if (isBatchRunning()) {
+                            exitWhenDone = true;
+                            requestStop();
+                        } else {
+                            // The batch finished while the dialog was open.
+                            frmJMkvpropedit.dispose();
+                            System.exit(0);
+                        }
                     }
                 } else {
                     frmJMkvpropedit.dispose();
@@ -1065,12 +1077,15 @@ public class JMkvpropedit implements AttachmentPanel.Host {
     private void wireActionButtons() {
         btnProcessFiles.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
+                if (isBatchRunning()) {
+                    requestStop();
+                    return;
+                }
+
                 if (modelFiles.getSize() == 0) {
                     JOptionPane.showMessageDialog(frmJMkvpropedit, "The file list is empty!", "Empty list",
                             JOptionPane.ERROR_MESSAGE);
-                } else {
-                    setCmdLine();
-
+                } else if (setCmdLine()) {
                     if (cmdLineBatchOpt.size() == 0) {
                         JOptionPane.showMessageDialog(frmJMkvpropedit, "Nothing to do!", "",
                                 JOptionPane.INFORMATION_MESSAGE);
@@ -1080,7 +1095,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
                         } else {
                             JOptionPane.showMessageDialog(frmJMkvpropedit, "Mkvpropedit executable not found!"
                                     + "\nPlease make sure it is installed and included in the system path.\n"
-                                    + "Alternatively, you can manually set the path or copy its executable to the working folder.",
+                                    + "Alternatively, you can set its path in the Options tab.",
                                     "", JOptionPane.ERROR_MESSAGE);
                         }
                     }
@@ -1094,17 +1109,15 @@ public class JMkvpropedit implements AttachmentPanel.Host {
                 if (modelFiles.getSize() == 0) {
                     JOptionPane.showMessageDialog(frmJMkvpropedit, "The file list is empty!", "Empty list",
                             JOptionPane.ERROR_MESSAGE);
-                } else {
-                    setCmdLine();
-
+                } else if (setCmdLine()) {
                     if (cmdLineBatch.size() == 0) {
                         JOptionPane.showMessageDialog(frmJMkvpropedit, "Nothing to do!", "",
                                 JOptionPane.INFORMATION_MESSAGE);
                     } else {
                         txtOutput.setText("");
 
-                        for (int i = 0; i < modelFiles.size(); i++) {
-                            txtOutput.append(cmdLineBatch.get(i) + "\n");
+                        for (String line : cmdLineBatch) {
+                            txtOutput.append(line + "\n");
                         }
 
                         pnlTabs.setSelectedIndex(pnlTabs.getTabCount() - 1);
@@ -1129,8 +1142,8 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         return files;
     }
 
-    private void setCmdLineGeneral() {
-        CommandBuilder.GeneralSettings settings = new CommandBuilder.GeneralSettings(
+    private CommandBuilder.GeneralSettings generalSettings() {
+        return new CommandBuilder.GeneralSettings(
                 new CommandBuilder.SourceSetting(chbTags.isSelected(), cbTags.getSelectedIndex(),
                         txtTags.getText(), String.valueOf(cbExtTags.getSelectedItem())),
                 new CommandBuilder.SourceSetting(chbChapters.isSelected(), cbChapters.getSelectedIndex(),
@@ -1138,51 +1151,63 @@ public class JMkvpropedit implements AttachmentPanel.Host {
                 new CommandBuilder.TitleSetting(chbTitleGeneral.isSelected(), chbNumbGeneral.isSelected(),
                         txtTitleGeneral.getText(), txtNumbStartGeneral.getText(), txtNumbPadGeneral.getText()),
                 chbExtraCmdGeneral.isSelected(), txtExtraCmdGeneral.getText());
-
-        CommandBuilder.Section section = commandBuilder.buildGeneral(fileList(), settings);
-        cmdLineGeneral = section.plain();
-        cmdLineGeneralOpt = section.opt();
     }
 
-    private void setCmdLineVideo() {
-        CommandBuilder.Section section = commandBuilder.buildTracks(fileList(), 'v', videoPanel.trackSettings());
-        cmdLineVideo = section.plain();
-        cmdLineVideoOpt = section.opt();
+    /**
+     * Rebuilds {@link #cmdLineBatch} and {@link #cmdLineBatchOpt} from the
+     * current settings.
+     *
+     * @return false (after telling the user why) if a setting cannot be turned
+     *         into arguments, e.g. an unclosed quote in "Extra parameters"
+     */
+    private boolean setCmdLine() {
+        List<String> files = fileList();
+
+        try {
+            CommandBuilder.Section general = commandBuilder.buildGeneral(files, generalSettings());
+            CommandBuilder.Section video = commandBuilder.buildTracks(files, 'v', videoPanel.trackSettings());
+            CommandBuilder.Section audio = commandBuilder.buildTracks(files, 'a', audioPanel.trackSettings());
+            CommandBuilder.Section subtitle = commandBuilder.buildTracks(files, 's',
+                    subtitlePanel.trackSettings());
+
+            List<String> attachments = new ArrayList<>();
+            attachments.addAll(attachmentDeletePanel.args());
+            attachments.addAll(attachmentAddPanel.args());
+            attachments.addAll(attachmentReplacePanel.args());
+
+            CommandBuilder.Batch batch = commandBuilder.buildBatch(txtMkvPropExe.getText(), files,
+                    general, attachments, video, audio, subtitle);
+
+            cmdLineBatch = batch.lines();
+            cmdLineBatchOpt = batch.args();
+            return true;
+        } catch (ArgumentSplitter.InvalidParametersException e) {
+            showError("Invalid extra parameters.\n" + e.getMessage());
+        } catch (InvalidSettingException e) {
+            showError(e.getMessage());
+        } catch (NumberFormatException e) {
+            showError("A numbering field (start or padding) is not a whole number.");
+        }
+
+        cmdLineBatch = List.of();
+        cmdLineBatchOpt = List.of();
+        return false;
     }
 
-    private void setCmdLineAudio() {
-        CommandBuilder.Section section = commandBuilder.buildTracks(fileList(), 'a', audioPanel.trackSettings());
-        cmdLineAudio = section.plain();
-        cmdLineAudioOpt = section.opt();
+    private boolean isBatchRunning() {
+        return worker != null && !worker.isDone();
     }
 
-    private void setCmdLineSubtitle() {
-        CommandBuilder.Section section = commandBuilder.buildTracks(fileList(), 's', subtitlePanel.trackSettings());
-        cmdLineSubtitle = section.plain();
-        cmdLineSubtitleOpt = section.opt();
-    }
+    /** Asks the running batch to stop once the current file is done. */
+    private void requestStop() {
+        if (!isBatchRunning() || stopRequested) {
+            return;
+        }
 
-    private void setCmdLine() {
-        setCmdLineGeneral();
-        setCmdLineVideo();
-        setCmdLineAudio();
-        setCmdLineSubtitle();
-
-        CommandBuilder.Attachments attachments = new CommandBuilder.Attachments(
-                new CommandBuilder.AttachmentArgs(attachmentDeletePanel.cmdLine(), attachmentAddPanel.cmdLine(),
-                        attachmentReplacePanel.cmdLine()),
-                new CommandBuilder.AttachmentArgs(attachmentDeletePanel.cmdLineOpt(), attachmentAddPanel.cmdLineOpt(),
-                        attachmentReplacePanel.cmdLineOpt()));
-
-        CommandBuilder.Batch batch = commandBuilder.buildBatch(txtMkvPropExe.getText(), fileList(),
-                new CommandBuilder.Section(cmdLineGeneral, cmdLineGeneralOpt),
-                new CommandBuilder.Section(cmdLineVideo, cmdLineVideoOpt),
-                new CommandBuilder.Section(cmdLineAudio, cmdLineAudioOpt),
-                new CommandBuilder.Section(cmdLineSubtitle, cmdLineSubtitleOpt),
-                attachments);
-
-        cmdLineBatch = batch.lines();
-        cmdLineBatchOpt = batch.optArgs();
+        stopRequested = true;
+        btnProcessFiles.setEnabled(false);
+        btnProcessFiles.setText("Stopping...");
+        appendOutput("\nStop requested: finishing the current file...\n\n");
     }
 
     private void executeBatch() {
@@ -1192,108 +1217,82 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         txtOutput.setText("");
         pnlTabs.setSelectedIndex(pnlTabs.getTabCount() - 1);
         pnlTabs.setEnabled(false);
-        btnProcessFiles.setEnabled(false);
         btnGenerateCmdLine.setEnabled(false);
+        btnProcessFiles.setText(STOP_LABEL);
+        btnProcessFiles.setEnabled(true);
+        stopRequested = false;
 
         // Snapshot the inputs so the worker only reads plain data: disabling
         // the tab pane does not stop the file list from being edited while the
         // batch runs.
-        final List<String> batch = List.copyOf(cmdLineBatch);
-        final List<String[]> batchOpt = List.copyOf(cmdLineBatchOpt);
+        final List<String> lines = List.copyOf(cmdLineBatch);
+        final List<List<String>> args = List.copyOf(cmdLineBatchOpt);
         final List<String> fileNames = fileList();
         final String exePath = txtMkvPropExe.getText();
 
         worker = new SwingWorker<Void, Void>() {
             @Override
             public Void doInBackground() {
+                BatchSummary summary = new BatchSummary(args.size());
                 ProcessRunner runner = new ProcessRunner(exePath);
 
-                for (int i = 0; i < batch.size(); i++) {
+                for (int i = 0; i < args.size(); i++) {
+                    if (stopRequested) {
+                        break;
+                    }
+
+                    String file = fileNames.get(i);
+
                     try {
-                        appendOutput("File: " + fileNames.get(i) + "\n");
-                        appendOutput("Command line: " + batch.get(i) + "\n\n");
+                        appendOutput("File: " + file + "\n");
+                        appendOutput("Command line: " + lines.get(i) + "\n\n");
 
-                        runner.runWithOptionsFile(optionsJson(batchOpt.get(i)),
-                                JMkvpropedit.this::appendOutput);
+                        int exitCode = runner.runWithOptions(args.get(i), JMkvpropedit.this::appendOutput);
+                        summary.record(file, ProcessRunner.Outcome.of(exitCode));
 
-                        if (i < batch.size() - 1) {
-                            appendOutput("--------------\n\n");
+                        if (exitCode != 0) {
+                            appendOutput("\nmkvpropedit exit code: " + exitCode + "\n");
                         }
                     } catch (IOException e) {
                         appendOutput("Error: " + e + "\n");
+                        summary.record(file, ProcessRunner.Outcome.FAILED);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         break;
                     }
+
+                    if (i < args.size() - 1) {
+                        appendOutput("--------------\n\n");
+                    }
                 }
 
+                appendOutput("\n" + summary.report());
                 return null;
             }
 
             @Override
             protected void done() {
+                try {
+                    get();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException e) {
+                    appendOutput("Error: batch aborted: " + e.getCause() + "\n");
+                }
+
                 pnlTabs.setEnabled(true);
+                btnProcessFiles.setText(PROCESS_LABEL);
                 btnProcessFiles.setEnabled(true);
                 btnGenerateCmdLine.setEnabled(true);
+
+                if (exitWhenDone) {
+                    frmJMkvpropedit.dispose();
+                    System.exit(0);
+                }
             }
         };
 
         worker.execute();
-    }
-
-    /**
-     * Cracks an Opt command line into the argument list for options.json.
-     * The logic (including unwinding {@link Utils#escapeName}'s encoding)
-     * lives in {@link CommandBuilder#toOptArgs}; this alias keeps the entry
-     * point where existing harness code expects it.
-     */
-    static String[] toOptArgs(String optCommandLine) {
-        return CommandBuilder.toOptArgs(optCommandLine);
-    }
-
-    /**
-     * Builds the contents of options.json: the arguments as a JSON array of
-     * properly escaped strings (issue #6).
-     */
-    static String optionsJson(String[] args) {
-        StringBuilder json = new StringBuilder("[\n");
-        for (int i = 0; i < args.length; i++) {
-            json.append("  ").append(jsonString(args[i]));
-            if (i < args.length - 1) {
-                json.append(',');
-            }
-            json.append('\n');
-        }
-        return json.append("]\n").toString();
-    }
-
-    /**
-     * Minimal JSON string writer: escapes the quote, backslash and control
-     * characters; everything else (including unicode) is valid UTF-8 JSON as-is.
-     */
-    private static String jsonString(String raw) {
-        StringBuilder sb = new StringBuilder(raw.length() + 16);
-        sb.append('"');
-        for (int i = 0; i < raw.length(); i++) {
-            char c = raw.charAt(i);
-            switch (c) {
-            case '"' -> sb.append("\\\"");
-            case '\\' -> sb.append("\\\\");
-            case '\b' -> sb.append("\\b");
-            case '\f' -> sb.append("\\f");
-            case '\n' -> sb.append("\\n");
-            case '\r' -> sb.append("\\r");
-            case '\t' -> sb.append("\\t");
-            default -> {
-                if (c < 0x20) {
-                    sb.append(String.format("\\u%04x", (int) c));
-                } else {
-                    sb.append(c);
-                }
-            }
-            }
-        }
-        return sb.append('"').toString();
     }
 
     /**
@@ -1326,7 +1325,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
 
     @Override
     public void showError(String message) {
-        JOptionPane.showMessageDialog(null, message, "", JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(frmJMkvpropedit, message, "", JOptionPane.ERROR_MESSAGE);
     }
 
     private void parseFiles(String[] argsArray) {
@@ -1466,16 +1465,53 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         }
     }
 
+    /**
+     * Scans a folder (recursively) for Matroska files without blocking the
+     * UI: the walk and path resolution run in the background, and the found
+     * files are added to the list on the EDT when the scan is done.
+     */
     private void addMkvFilesFromFolder(final File folder) {
-        SwingUtilities.invokeLater(() -> {
-            try {
+        appendOutput("Scanning " + folder + " ...\n");
+
+        new SwingWorker<List<String>, Void>() {
+            @Override
+            protected List<String> doInBackground() throws IOException {
+                List<String> found = new ArrayList<>();
+
                 for (Path path : FileScanner.scanMatroskaFiles(folder.toPath())) {
-                    addFile(path.toFile(), false);
+                    found.add(path.toFile().getCanonicalPath());
                 }
-            } catch (IOException | UncheckedIOException e) {
-                appendOutput("Error: could not scan " + folder + ": " + e + "\n");
+
+                return found;
             }
-        });
+
+            @Override
+            protected void done() {
+                try {
+                    List<String> found = get();
+                    Set<String> present = new HashSet<>(fileList());
+                    int added = 0;
+
+                    for (String path : found) {
+                        if (present.add(path)) {
+                            modelFiles.addElement(path);
+                            added++;
+                        }
+                    }
+
+                    appendOutput("Added " + added + " file(s) from " + folder + "\n");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof IOException || cause instanceof UncheckedIOException) {
+                        appendOutput("Error: could not scan " + folder + ": " + cause + "\n");
+                    } else {
+                        appendOutput("Error: scan of " + folder + " failed: " + cause + "\n");
+                    }
+                }
+            }
+        }.execute();
     }
 
     /* End of file methods */
