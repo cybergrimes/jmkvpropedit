@@ -129,11 +129,45 @@ public final class ProcessRunner {
         }
     }
 
+    /**
+     * Hands the output to {@code output} one line at a time, decoded as UTF-8.
+     * Lines ending in {@code \n} or {@code \r\n} arrive ending in {@code \n}.
+     * A line ending in a lone {@code \r} (how mkvpropedit redraws its
+     * "Progress: 42%" line in place) arrives ending in {@code \r}, meaning the
+     * next line replaces it; see {@link ProgressOutput}. Text left at the end
+     * of the stream arrives ending in {@code \n}.
+     */
     static void forwardOutput(InputStream is, Consumer<String> output) {
         try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            String line;
+            StringBuilder line = new StringBuilder();
+            boolean afterCr = false;
+            int c;
 
-            while ((line = br.readLine()) != null) {
+            while ((c = br.read()) != -1) {
+                if (afterCr) {
+                    afterCr = false;
+
+                    if (c == '\n') {
+                        output.accept(line + "\n");
+                        line.setLength(0);
+                        continue;
+                    }
+
+                    output.accept(line + "\r");
+                    line.setLength(0);
+                }
+
+                if (c == '\r') {
+                    afterCr = true;
+                } else if (c == '\n') {
+                    output.accept(line + "\n");
+                    line.setLength(0);
+                } else {
+                    line.append((char) c);
+                }
+            }
+
+            if (afterCr || line.length() > 0) {
                 output.accept(line + "\n");
             }
         } catch (IOException e) {

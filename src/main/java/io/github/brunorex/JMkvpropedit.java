@@ -221,6 +221,8 @@ public class JMkvpropedit implements AttachmentPanel.Host {
 
     // Output tab controls
     private JTextArea txtOutput;
+    /** mkvpropedit's output into {@link #txtOutput}; created on first use, on the EDT. */
+    private ProgressOutput toolOutput;
 
     /**
      * Launch the application.
@@ -1413,7 +1415,10 @@ public class JMkvpropedit implements AttachmentPanel.Host {
      */
     private void appendToolOutput(final String text) {
         SwingUtilities.invokeLater(() -> {
-            ProgressOutput.append(txtOutput, text);
+            if (toolOutput == null) {
+                toolOutput = new ProgressOutput(txtOutput);
+            }
+            toolOutput.append(text);
             txtOutput.setCaretPosition(txtOutput.getDocument().getLength());
         });
     }

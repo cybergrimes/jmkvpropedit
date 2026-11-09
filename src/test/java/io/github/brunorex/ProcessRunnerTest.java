@@ -48,6 +48,16 @@ class ProcessRunnerTest {
     }
 
     @Test
+    void windowsLineEndingsAndLoneCarriageReturnsAreReported() {
+        byte[] data = "one\r\nProgress: 5%\rProgress: 100%\r\ntail".getBytes(StandardCharsets.UTF_8);
+        List<String> out = new ArrayList<>();
+
+        ProcessRunner.forwardOutput(new ByteArrayInputStream(data), out::add);
+
+        assertEquals(List.of("one\n", "Progress: 5%\r", "Progress: 100%\n", "tail\n"), out);
+    }
+
+    @Test
     void fakeStreamIsDecodedAsExplicitUtf8() {
         String expected = "привет, мир";
         byte[] data = (expected + "\n").getBytes(StandardCharsets.UTF_8);

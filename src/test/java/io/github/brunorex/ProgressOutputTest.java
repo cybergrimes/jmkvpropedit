@@ -1,64 +1,65 @@
 package io.github.brunorex;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 
 import javax.swing.JTextArea;
 
 import org.junit.jupiter.api.Test;
 
-/** Progress percentages from mkvpropedit update one line of the output box. */
+/** mkvpropedit's progress, redrawn with carriage returns, stays on one line of the output box. */
 class ProgressOutputTest {
 
-    private static String feed(String... lines) {
+    /** Feeds raw process output through the real reader into a text area. */
+    private static String show(String raw) {
         JTextArea area = new JTextArea();
-        for (String line : lines) {
-            ProgressOutput.append(area, line);
-        }
+        ProgressOutput out = new ProgressOutput(area);
+        ProcessRunner.forwardOutput(new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)), out::append);
         return area.getText();
     }
 
+    /** The exact byte layout mkvpropedit v103 writes on Windows. */
     @Test
-    void progressLinesReplaceEachOther() {
-        assertEquals("The file is read in order to create track statistics.\nProgress: 100%\nDone.\n",
-                feed("The file is read in order to create track statistics.\n",
-                        "Progress: 0%\n", "Progress: 1%\n", "Progress: 73%\n", "Progress: 100%\n",
-                        "Done.\n"));
+    void mkvpropeditProgressEndsUpAsOneLine() {
+        assertEquals("The file is read in order to create track statistics.\nProgress: 100%\n"
+                + "The changes are written to the file.\nDone.\n",
+                show("The file is read in order to create track statistics.\r\n"
+                        + "Progress: 0%\rProgress: 1%\rProgress: 73%\rProgress: 100%\r\n"
+                        + "The changes are written to the file.\r\nDone.\r\n"));
     }
 
     @Test
-    void eachFileKeepsItsOwnProgressLine() {
-        assertEquals("Progress: 100%\nDone.\nProgress: 100%\nDone.\n",
-                feed("Progress: 0%\n", "Progress: 100%\n", "Done.\n",
-                        "Progress: 0%\n", "Progress: 100%\n", "Done.\n"));
+    void anyLanguageWorksBecauseTheWordingDoesNotMatter() {
+        assertEquals("进度：100%\n完成。\n", show("进度：5%\r进度：42%\r进度：100%\r\n完成。\r\n"));
+        assertEquals("Progression : 100 %\n", show("Progression : 10 %\rProgression : 100 %\r\n"));
     }
 
     @Test
-    void ordinaryLinesAreAppendedUnchanged() {
-        assertEquals("The file is being analyzed.\nThe changes are written to the file.\nDone.\n",
-                feed("The file is being analyzed.\n", "The changes are written to the file.\n", "Done.\n"));
+    void similarLookingMessagesOnSeparateLinesAreAllKept() {
+        assertEquals("Warning: 5%\nWarning: 12%\n", show("Warning: 5%\r\nWarning: 12%\r\n"));
     }
 
     @Test
-    void firstLineCanBeProgress() {
-        assertEquals("Progress: 5%\n", feed("Progress: 1%\n", "Progress: 5%\n"));
+    void ordinaryOutputIsUnchanged() {
+        assertEquals("a\nb\nc\n", show("a\r\nb\nc"));
     }
 
     @Test
-    void translatedProgressIsRecognised() {
-        assertEquals("Progression : 50 %\n", feed("Progression : 10 %\n", "Progression : 50 %\n"));
-        assertEquals("Fortschritt: 9%\n", feed("Fortschritt: 3%\n", "Fortschritt: 9%\n"));
+    void outputCutOffMidProgressKeepsTheLastValue() {
+        assertEquals("Progress: 40%\n", show("Progress: 10%\rProgress: 40%\r"));
     }
 
     @Test
-    void differentLabelsAreNotMerged() {
-        assertEquals("Progress: 50%\nOther: 10%\n", feed("Progress: 50%\n", "Other: 10%\n"));
-    }
+    void theAppsOwnLinesAreNeverOverwritten() {
+        JTextArea area = new JTextArea();
+        ProgressOutput out = new ProgressOutput(area);
 
-    @Test
-    void textMentioningPercentagesIsNotProgress() {
-        assertNull(ProgressOutput.label("Warning: 3 of 10 tracks: 30% done\n"));
-        assertNull(ProgressOutput.label("Error: C:\\path\\file 50%.mkv\n"));
-        assertNull(ProgressOutput.label("Done.\n"));
+        out.append("Progress: 40%\r");
+        area.append("Error: mkvpropedit stopped\n"); // written by the app, not mkvpropedit
+        out.append("File: next.mkv\n");
+
+        assertEquals("Progress: 40%\nError: mkvpropedit stopped\nFile: next.mkv\n", area.getText());
     }
 }
