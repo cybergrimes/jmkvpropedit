@@ -554,7 +554,9 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         chbTrackStats = new JCheckBox("Update track statistics");
         chbTrackStats.setToolTipText("<html>Recalculates each track's bitrate, duration, frame count and size<br>"
                 + "(shown by MediaInfo and media servers). The video and audio are not changed.<br>"
-                + "Slower: each file is read in full, about as long as copying it.</html>");
+                + "Slower: each file is read in full, about as long as copying it.<br><br>"
+                + "Note: this replaces the existing statistics. Extra details some tools store there,<br>"
+                + "such as MakeMKV's source info (\"Original source medium: Blu-ray\"), are removed.</html>");
         GridBagConstraints gbc_chbTrackStats = new GridBagConstraints();
         gbc_chbTrackStats.anchor = GridBagConstraints.WEST;
         gbc_chbTrackStats.insets = new Insets(0, 0, 10, 0);
