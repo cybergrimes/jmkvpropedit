@@ -1,18 +1,26 @@
-JMkvpropedit v1.5.2
+JMkvpropedit
 
-A batch GUI for mkvpropedit (part of MKVToolNix) written in Java.
-It should work on Windows, Linux and other *nixes (not tested).
+Changes the title, track names, languages and flags of many MKV files at
+once, using mkvpropedit from MKVToolNix (https://mkvtoolnix.download/),
+which must be installed separately.
 
-The Windows installer bundles a Java 21 runtime, so the application runs
-without any system Java installed.
+The Windows download has Java 21 bundled, so you don't need to install
+Java. Unzip it and run jmkvpropedit.exe, keeping it together with the app
+and runtime folders. Then, on the Options tab, point the app at
+mkvpropedit.exe (usually C:\Program Files\MKVToolNix\mkvpropedit.exe).
 
-Building from source requires a JDK 21:
+Changes are written straight into your files and can't be undone, so try
+a new batch on a copy of one or two files first.
+
+Building from source needs a JDK 21:
     gradlew build
 
-Packaging the self-contained Windows installer (opt-in, output in build/jpackage):
-    gradlew jpackage                          exe installer (needs WiX Toolset 3)
-    gradlew jpackage -PjpackageType=msi       msi installer (needs WiX Toolset 3)
-    gradlew jpackage -PjpackageType=app-image portable app image, no WiX required
+The portable app or a Windows installer is made with jpackage (output in
+build/jpackage):
+    gradlew jpackage -PjpackageType=app-image  portable app, no WiX needed
+    gradlew jpackage                           exe installer (needs WiX Toolset 3)
+    gradlew jpackage -PjpackageType=msi        msi installer (needs WiX Toolset 3)
 
-Source and downloads at:
-https://github.com/BrunoReX/jmkvpropedit
+See README.md for how to use the app and BUILDING.md for developer notes.
+
+Original project by Bruno Barbieri: https://github.com/BrunoReX/jmkvpropedit
