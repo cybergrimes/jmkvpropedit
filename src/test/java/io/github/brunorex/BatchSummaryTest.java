@@ -36,6 +36,28 @@ class BatchSummaryTest {
     }
 
     @Test
+    void reportListsTracksLeftOutPerFile() {
+        BatchSummary summary = new BatchSummary(2);
+        summary.record("ep1.mkv", ProcessRunner.Outcome.SUCCESS);
+        summary.recordSkippedTracks("ep2.mkv", List.of("Audio track 2", "Subtitle track 3"));
+        summary.record("ep2.mkv", ProcessRunner.Outcome.SUCCESS);
+
+        String report = summary.report();
+
+        assertTrue(report.contains("2 succeeded, 0 with warnings, 0 failed\n"), report);
+        assertTrue(report.contains("Edits skipped for tracks the file doesn't have:\n"
+                + "  ep2.mkv (Audio track 2, Subtitle track 3)\n"), report);
+    }
+
+    @Test
+    void reportOmitsTheSkippedTracksListWhenNothingWasSkipped() {
+        BatchSummary summary = new BatchSummary(1);
+        summary.record("a.mkv", ProcessRunner.Outcome.SUCCESS);
+
+        assertFalse(summary.report().contains("Edits skipped"), summary.report());
+    }
+
+    @Test
     void reportMentionsFilesSkippedByAStop() {
         BatchSummary summary = new BatchSummary(5);
         summary.record("a.mkv", ProcessRunner.Outcome.SUCCESS);

@@ -14,6 +14,7 @@ public final class BatchSummary {
     private int succeeded;
     private final List<String> warned = new ArrayList<>();
     private final List<String> failed = new ArrayList<>();
+    private final List<String> tracksSkipped = new ArrayList<>();
 
     public BatchSummary(int total) {
         this.total = total;
@@ -25,6 +26,15 @@ public final class BatchSummary {
         case WARNINGS -> warned.add(file);
         case FAILED -> failed.add(file);
         }
+    }
+
+    /** Notes the edited tracks a file did not have, so their edits were left out. */
+    public void recordSkippedTracks(String file, List<String> tracks) {
+        tracksSkipped.add(file + " (" + String.join(", ", tracks) + ")");
+    }
+
+    public List<String> tracksSkipped() {
+        return List.copyOf(tracksSkipped);
     }
 
     public int processed() {
@@ -53,6 +63,7 @@ public final class BatchSummary {
 
         appendList(sb, "Failed:", failed);
         appendList(sb, "With warnings:", warned);
+        appendList(sb, "Edits skipped for tracks the file doesn't have:", tracksSkipped);
         return sb.toString();
     }
 

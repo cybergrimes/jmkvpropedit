@@ -157,8 +157,15 @@ public final class CommandBuilder {
      * Per-file arguments for one section (General, Video, ...), in file order.
      *
      * @param perFile one unmodifiable argument list per file
+     * @param perSlot track sections only (else null): for each file, the
+     *                arguments of each track slot (empty if that slot has
+     *                nothing to do); flattened, they equal {@code perFile}
      */
-    public record Section(List<List<String>> perFile) {
+    public record Section(List<List<String>> perFile, List<List<List<String>>> perSlot) {
+
+        public Section(List<List<String>> perFile) {
+            this(perFile, null);
+        }
 
         public List<String> forFile(int index) {
             return perFile.get(index);
@@ -170,13 +177,105 @@ public final class CommandBuilder {
     }
 
     /**
+     * How many tracks of each type one file has.
+     */
+    public record TrackCounts(int video, int audio, int subtitle) {
+
+        /** The count for a track selector: {@code v}, {@code a} or {@code s}. */
+        public int of(char selector) {
+            return switch (selector) {
+            case 'v' -> video;
+            case 'a' -> audio;
+            case 's' -> subtitle;
+            default -> throw new IllegalArgumentException("track selector " + selector);
+            };
+        }
+    }
+
+    /**
+     * One track slot's arguments within a {@link FilePlan}.
+     *
+     * @param selector {@code v}, {@code a} or {@code s}; {@code 0} for
+     *                 arguments that are always kept
+     * @param number   the track number of that type (1-based)
+     * @param args     the slot's arguments, starting with its {@code --edit}
+     */
+    public record Slot(char selector, int number, List<String> args) {
+
+        /** "Subtitle track 3" (always-kept arguments have no label). */
+        public String label() {
+            String type = switch (selector) {
+            case 'v' -> "Video";
+            case 'a' -> "Audio";
+            default -> "Subtitle";
+            };
+            return type + " track " + number;
+        }
+    }
+
+    /**
+     * One file's edits, kept in parts so that edits for tracks the file does
+     * not have can be left out once its tracks are known (mkvpropedit refuses
+     * to change a file at all if an edit names a track it lacks).
+     *
+     * @param file   the Matroska file
+     * @param common general and attachment arguments, always kept
+     * @param slots  the track slots with something to do, in argument order
+     */
+    public record FilePlan(String file, List<String> common, List<Slot> slots) {
+
+        /** True if any edit depends on the file having a particular track. */
+        public boolean editsTracks() {
+            return slots.stream().anyMatch(s -> s.selector() != 0);
+        }
+
+        private static boolean present(Slot slot, TrackCounts counts) {
+            return slot.selector() == 0 || slot.number() <= counts.of(slot.selector());
+        }
+
+        /** Labels of the edited tracks this file does not have, in order. */
+        public List<String> missing(TrackCounts counts) {
+            List<String> labels = new ArrayList<>();
+            for (Slot slot : slots) {
+                if (!present(slot, counts)) {
+                    labels.add(slot.label());
+                }
+            }
+            return labels;
+        }
+
+        /** The file followed by every edit that applies to a file with these tracks. */
+        public List<String> args(TrackCounts counts) {
+            List<String> args = new ArrayList<>();
+            args.add(file);
+            args.addAll(common);
+            for (Slot slot : slots) {
+                if (present(slot, counts)) {
+                    args.addAll(slot.args());
+                }
+            }
+            return Collections.unmodifiableList(args);
+        }
+    }
+
+    /**
      * The finished batch, one entry per file, same order as the file list.
      *
      * @param lines display command lines (exe + file + arguments, shell-quoted)
      * @param args  the real arguments for each file (file + edit arguments,
      *              without the executable) — what goes into the options file
+     * @param plans the same edits per file, in parts, for leaving out tracks
+     *              a file lacks
      */
-    public record Batch(List<String> lines, List<List<String>> args) {
+    public record Batch(List<String> lines, List<List<String>> args, List<FilePlan> plans) {
+    }
+
+    /** The display command line for one file's arguments (without the executable). */
+    public String line(String exePath, List<String> args) {
+        List<String> display = new ArrayList<>(args.size() + 1);
+        display.add(exePath);
+        display.addAll(args);
+        return CommandLineFormatter.format(display, windows);
     }
 
     private final boolean windows;
@@ -303,36 +402,41 @@ public final class CommandBuilder {
         }
 
         List<List<String>> perFile = new ArrayList<>(files.size());
+        List<List<List<String>>> perSlot = new ArrayList<>(files.size());
 
         for (String file : files) {
             List<String> args = new ArrayList<>();
+            List<List<String>> slots = new ArrayList<>(tracks.size());
             String fileName = Utils.getFileNameWithoutExt(file);
 
             for (int t = 0; t < tracks.size(); t++) {
                 List<String> template = templates.get(t);
+                List<String> slot = new ArrayList<>(template.size());
 
-                if (template.isEmpty()) {
-                    continue;
-                }
-
-                String num = null;
-                if (tracks.get(t).numbered()) {
-                    num = Utils.padNumber(pads[t], numbers[t]);
-                    numbers[t]++;
-                }
-
-                for (String arg : template) {
-                    if (num != null) {
-                        arg = arg.replace("{num}", num);
+                if (!template.isEmpty()) {
+                    String num = null;
+                    if (tracks.get(t).numbered()) {
+                        num = Utils.padNumber(pads[t], numbers[t]);
+                        numbers[t]++;
                     }
-                    args.add(arg.replace("{file_name}", fileName));
+
+                    for (String arg : template) {
+                        if (num != null) {
+                            arg = arg.replace("{num}", num);
+                        }
+                        slot.add(arg.replace("{file_name}", fileName));
+                    }
                 }
+
+                args.addAll(slot);
+                slots.add(Collections.unmodifiableList(slot));
             }
 
             perFile.add(Collections.unmodifiableList(args));
+            perSlot.add(Collections.unmodifiableList(slots));
         }
 
-        return new Section(Collections.unmodifiableList(perFile));
+        return new Section(Collections.unmodifiableList(perFile), Collections.unmodifiableList(perSlot));
     }
 
     /** The arguments for one track before per-file substitution; empty if nothing to do. */
@@ -451,35 +555,56 @@ public final class CommandBuilder {
             Section video, Section audio, Section subtitle) {
         List<String> lines = new ArrayList<>();
         List<List<String>> allArgs = new ArrayList<>();
+        List<FilePlan> plans = new ArrayList<>();
 
         if (files.isEmpty()) {
-            return new Batch(lines, allArgs);
+            return new Batch(lines, allArgs, plans);
         }
 
         for (int i = 0; i < files.size(); i++) {
-            List<String> edits = new ArrayList<>();
-            edits.addAll(general.forFile(i));
-            edits.addAll(attachments);
-            edits.addAll(video.forFile(i));
-            edits.addAll(audio.forFile(i));
-            edits.addAll(subtitle.forFile(i));
+            List<String> common = new ArrayList<>();
+            common.addAll(general.forFile(i));
+            common.addAll(attachments);
 
-            if (i == 0 && edits.isEmpty()) {
-                return new Batch(lines, allArgs);
+            List<Slot> slots = new ArrayList<>();
+            addSlots(slots, 'v', video, i);
+            addSlots(slots, 'a', audio, i);
+            addSlots(slots, 's', subtitle, i);
+
+            FilePlan plan = new FilePlan(files.get(i), Collections.unmodifiableList(common),
+                    Collections.unmodifiableList(slots));
+            List<String> args = plan.args(new TrackCounts(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE));
+
+            if (i == 0 && args.size() == 1) {
+                return new Batch(lines, allArgs, plans);
             }
 
-            List<String> args = new ArrayList<>(edits.size() + 1);
-            args.add(files.get(i));
-            args.addAll(edits);
-
-            List<String> display = new ArrayList<>(args.size() + 1);
-            display.add(exePath);
-            display.addAll(args);
-
-            lines.add(CommandLineFormatter.format(display, windows));
-            allArgs.add(Collections.unmodifiableList(args));
+            lines.add(line(exePath, args));
+            allArgs.add(args);
+            plans.add(plan);
         }
 
-        return new Batch(Collections.unmodifiableList(lines), Collections.unmodifiableList(allArgs));
+        return new Batch(Collections.unmodifiableList(lines), Collections.unmodifiableList(allArgs),
+                Collections.unmodifiableList(plans));
+    }
+
+    /**
+     * Adds one track section's slots for file {@code i}. A section built
+     * without slot information becomes a single always-kept part.
+     */
+    private static void addSlots(List<Slot> slots, char selector, Section section, int i) {
+        if (section.perSlot() == null) {
+            if (!section.forFile(i).isEmpty()) {
+                slots.add(new Slot((char) 0, 0, section.forFile(i)));
+            }
+            return;
+        }
+
+        List<List<String>> fileSlots = section.perSlot().get(i);
+        for (int t = 0; t < fileSlots.size(); t++) {
+            if (!fileSlots.get(t).isEmpty()) {
+                slots.add(new Slot(selector, t + 1, fileSlots.get(t)));
+            }
+        }
     }
 }

@@ -151,6 +151,8 @@ public class JMkvpropedit implements AttachmentPanel.Host {
 
     /** The real arguments, one list per file (file + edits), passed via the options file. */
     private List<List<String>> cmdLineBatchOpt = List.of();
+    /** The same edits per file, in parts, for leaving out tracks a file lacks. */
+    private List<CommandBuilder.FilePlan> cmdLineBatchPlans = List.of();
 
     // Window controls
     private Dimension frmJMkvpropeditDim = new Dimension(0, 0);
@@ -1283,6 +1285,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
 
             cmdLineBatch = batch.lines();
             cmdLineBatchOpt = batch.args();
+            cmdLineBatchPlans = batch.plans();
             return true;
         } catch (ArgumentSplitter.InvalidParametersException e) {
             showError("Invalid extra parameters.\n" + e.getMessage());
@@ -1294,6 +1297,7 @@ public class JMkvpropedit implements AttachmentPanel.Host {
 
         cmdLineBatch = List.of();
         cmdLineBatchOpt = List.of();
+        cmdLineBatchPlans = List.of();
         return false;
     }
 
@@ -1330,10 +1334,14 @@ public class JMkvpropedit implements AttachmentPanel.Host {
         // batch runs.
         final List<String> lines = List.copyOf(cmdLineBatch);
         final List<List<String>> args = List.copyOf(cmdLineBatchOpt);
+        final List<CommandBuilder.FilePlan> plans = List.copyOf(cmdLineBatchPlans);
         final List<String> fileNames = fileList();
         final String exePath = txtMkvPropExe.getText();
 
         worker = new SwingWorker<Void, Void>() {
+            /** mkvmerge, for reading each file's tracks; null once it turned out to be missing. */
+            private String mkvmerge = TrackCounter.mkvmergeFor(exePath);
+
             @Override
             public Void doInBackground() {
                 BatchSummary summary = new BatchSummary(args.size());
@@ -1348,9 +1356,32 @@ public class JMkvpropedit implements AttachmentPanel.Host {
 
                     try {
                         appendOutput("File: " + file + "\n");
-                        appendOutput("Command line: " + lines.get(i) + "\n\n");
 
-                        int exitCode = runner.runWithOptions(args.get(i), JMkvpropedit.this::appendToolOutput);
+                        List<String> fileArgs = args.get(i);
+                        String line = lines.get(i);
+                        CommandBuilder.TrackCounts counts = readTracks(plans.get(i), file);
+                        List<String> missing = counts == null ? List.of() : plans.get(i).missing(counts);
+
+                        if (!missing.isEmpty()) {
+                            fileArgs = plans.get(i).args(counts);
+                            line = commandBuilder.line(exePath, fileArgs);
+                            appendOutput("Skipped, not in this file: " + String.join(", ", missing) + "\n");
+                            summary.recordSkippedTracks(file, missing);
+                        }
+
+                        if (fileArgs.size() == 1) {
+                            appendOutput("Nothing left to change in this file.\n");
+                            summary.record(file, ProcessRunner.Outcome.SUCCESS);
+
+                            if (i < args.size() - 1) {
+                                appendOutput("--------------\n\n");
+                            }
+                            continue;
+                        }
+
+                        appendOutput("Command line: " + line + "\n\n");
+
+                        int exitCode = runner.runWithOptions(fileArgs, JMkvpropedit.this::appendToolOutput);
                         summary.record(file, ProcessRunner.Outcome.of(exitCode));
 
                         if (exitCode != 0) {
@@ -1371,6 +1402,32 @@ public class JMkvpropedit implements AttachmentPanel.Host {
 
                 appendOutput("\n" + summary.report());
                 return null;
+            }
+
+            /**
+             * This file's track counts, or null when there is nothing to check
+             * or they can't be read; every edit is then sent as set.
+             */
+            private CommandBuilder.TrackCounts readTracks(CommandBuilder.FilePlan plan, String file)
+                    throws InterruptedException {
+                if (mkvmerge == null || !plan.editsTracks()) {
+                    return null;
+                }
+
+                try {
+                    CommandBuilder.TrackCounts counts = TrackCounter.count(mkvmerge, file);
+
+                    if (counts == null) {
+                        appendOutput("Note: couldn't check this file's tracks (it may be damaged or not a Matroska file),\n"
+                                + "so every edit is sent as set.\n");
+                    }
+                    return counts;
+                } catch (IOException e) {
+                    appendOutput("Note: mkvmerge wasn't found next to mkvpropedit (" + mkvmerge + "),\n"
+                            + "so files missing an edited track won't be changed at all.\n");
+                    mkvmerge = null;
+                    return null;
+                }
             }
 
             @Override

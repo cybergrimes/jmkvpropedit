@@ -116,6 +116,71 @@ class CommandBuilderBatchTest {
         assertTrue(batch.args().isEmpty());
     }
 
+    /* Leaving out tracks a file doesn't have */
+
+    /** Title + audio tracks 1 and 2 + subtitle tracks 1 and 3 (slot 2 has nothing to do). */
+    private static CommandBuilder.Batch mixedBatch() {
+        CommandBuilder b = new CommandBuilder(true);
+        List<String> files = List.of("ep1.mkv", "ep2.mkv");
+        CommandBuilder.Section general = b.buildGeneral(files, new CommandBuilder.GeneralSettings(
+                new CommandBuilder.SourceSetting(false, 0, "", ".xml"),
+                new CommandBuilder.SourceSetting(false, 0, "", ".xml"),
+                new CommandBuilder.TitleSetting(true, false, "T", "1", "1"), false, ""));
+        CommandBuilder.Section audio = b.buildTracks(files, 'a',
+                List.of(TrackCommandBuilderTest.named("A1"), TrackCommandBuilderTest.named("A2")));
+        CommandBuilder.Section subs = b.buildTracks(files, 's', List.of(TrackCommandBuilderTest.named("S1"),
+                new CommandBuilder.TrackSettings(false, java.util.Map.of(), true, "unused", false, null,
+                        false, "", false, "1", "1"),
+                TrackCommandBuilderTest.named("S3")));
+        return b.buildBatch("mkvpropedit", files, general, List.of(), blanks(2), audio, subs);
+    }
+
+    @Test
+    void planWithEveryTrackPresentGivesTheSameArgumentsAsTheBatch() {
+        CommandBuilder.Batch batch = mixedBatch();
+
+        for (int i = 0; i < 2; i++) {
+            assertEquals(batch.args().get(i), batch.plans().get(i).args(new CommandBuilder.TrackCounts(1, 2, 3)));
+            assertEquals(List.of(), batch.plans().get(i).missing(new CommandBuilder.TrackCounts(1, 2, 3)));
+        }
+    }
+
+    @Test
+    void editsForMissingTracksAreLeftOutAndNamed() {
+        CommandBuilder.FilePlan plan = mixedBatch().plans().get(1);
+        CommandBuilder.TrackCounts counts = new CommandBuilder.TrackCounts(1, 1, 2);
+
+        assertEquals(List.of("Audio track 2", "Subtitle track 3"), plan.missing(counts));
+        assertEquals(List.of("ep2.mkv", "--edit", "info", "--set", "title=T",
+                "--edit", "track:a1", "--set", "name=A1",
+                "--edit", "track:s1", "--set", "name=S1"), plan.args(counts));
+    }
+
+    @Test
+    void aFileWithNoMatchingTracksKeepsOnlyTheGeneralEdits() {
+        CommandBuilder.FilePlan plan = mixedBatch().plans().get(0);
+
+        assertEquals(List.of("ep1.mkv", "--edit", "info", "--set", "title=T"),
+                plan.args(new CommandBuilder.TrackCounts(1, 0, 0)));
+    }
+
+    @Test
+    void planKnowsWhetherAnyEditDependsOnTracks() {
+        CommandBuilder.Batch titleOnly = new CommandBuilder(true).buildBatch("mkvpropedit", List.of("a.mkv"),
+                section("--edit", "info"), List.of(), blank(), blank(), blank());
+
+        assertEquals(false, titleOnly.plans().get(0).editsTracks());
+        assertEquals(true, mixedBatch().plans().get(0).editsTracks());
+    }
+
+    @Test
+    void runLineIsRenderedLikeThePreview() {
+        CommandBuilder b = new CommandBuilder(true);
+        CommandBuilder.Batch batch = mixedBatch();
+
+        assertEquals(batch.lines().get(0), b.line("mkvpropedit", batch.args().get(0)));
+    }
+
     /* Fixtures */
 
     private static CommandBuilder.Section section(String... args) {
