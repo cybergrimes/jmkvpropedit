@@ -77,11 +77,18 @@ class TrackCounterTest {
         assertEquals(new CommandBuilder.TrackCounts(0, 0, 1), TrackCounter.parse(json));
     }
 
+    /**
+     * Paths are built with {@link File} so the test holds on Windows and on
+     * the Linux CI, where a backslash is not a folder separator (regression:
+     * a literal "C:\..." path made this test fail on Linux).
+     */
     @Test
     void mkvmergeIsLookedForNextToMkvpropedit() {
-        assertEquals(new File("C:\\Program Files\\MKVToolNix", "mkvmerge.exe").getPath(),
-                TrackCounter.mkvmergeFor("C:\\Program Files\\MKVToolNix\\mkvpropedit.exe"));
-        assertEquals(new File("/usr/bin", "mkvmerge").getPath(), TrackCounter.mkvmergeFor("/usr/bin/mkvpropedit"));
+        File folder = new File("Program Files", "MKVToolNix");
+        assertEquals(new File(folder, "mkvmerge.exe").getPath(),
+                TrackCounter.mkvmergeFor(new File(folder, "mkvpropedit.exe").getPath()));
+        assertEquals(new File(folder, "mkvmerge").getPath(),
+                TrackCounter.mkvmergeFor(new File(folder, "mkvpropedit").getPath()));
         assertEquals("mkvmerge", TrackCounter.mkvmergeFor("mkvpropedit"));
         assertEquals("mkvmerge.exe", TrackCounter.mkvmergeFor(" mkvpropedit.exe "));
     }
